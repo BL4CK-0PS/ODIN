@@ -1,17 +1,14 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { useThreatMemories } from "@/hooks/use-threat-memory";
 import { Brain, Clock } from "lucide-react";
 
-const memories = [
-  { id: "m1", summary: "Ransomware uses PowerShell for C2 communication and registry persistence", confidence: 0.91, version: 3, date: "2026-07-06" },
-  { id: "m2", summary: "Phishing campaign targets finance department with credential harvesting", confidence: 0.85, version: 2, date: "2026-07-05" },
-  { id: "m3", summary: "Lateral movement via SMB using compromised domain account", confidence: 0.78, version: 1, date: "2026-07-04" },
-];
-
 export default function ThreatMemoryPage() {
+  const { data: memories, isLoading, error } = useThreatMemories();
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
@@ -23,25 +20,46 @@ export default function ThreatMemoryPage() {
       </div>
 
       <div className="grid gap-4">
-        {memories.map((m) => (
-          <Card key={m.id}>
-            <CardHeader className="flex-row items-start justify-between space-y-0">
-              <div className="space-y-1">
-                <CardTitle className="text-base">{m.summary}</CardTitle>
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Clock className="h-3 w-3" />
-                  <span>{m.date}</span>
+        {isLoading ? (
+          [1, 2, 3].map((i) => (
+            <Card key={i}>
+              <CardHeader className="flex-row items-start justify-between space-y-0">
+                <div className="space-y-2">
+                  <Skeleton className="h-5 w-96" />
+                  <Skeleton className="h-3 w-24" />
                 </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Badge variant="secondary">v{m.version}</Badge>
-                <span className="font-mono text-sm font-medium text-green-400">
-                  {(m.confidence * 100).toFixed(0)}%
-                </span>
-              </div>
-            </CardHeader>
-          </Card>
-        ))}
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-5 w-10" />
+                  <Skeleton className="h-5 w-12" />
+                </div>
+              </CardHeader>
+            </Card>
+          ))
+        ) : error ? (
+          <Card><CardContent className="p-6 text-red-400">Failed to load memories: {(error as Error).message}</CardContent></Card>
+        ) : (memories?.length ?? 0) === 0 ? (
+          <Card><CardContent className="p-6 text-muted-foreground">No threat memories yet. They are created as investigations are processed.</CardContent></Card>
+        ) : (
+          memories?.map((m: any) => (
+            <Card key={m.id}>
+              <CardHeader className="flex-row items-start justify-between space-y-0">
+                <div className="space-y-1">
+                  <CardTitle className="text-base">{m.summary}</CardTitle>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Clock className="h-3 w-3" />
+                    <span>{m.created_at ? new Date(m.created_at).toLocaleDateString() : ""}</span>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">v{m.version ?? 1}</Badge>
+                  <span className="font-mono text-sm font-medium text-green-400">
+                    {((m.confidence ?? 0) * 100).toFixed(0)}%
+                  </span>
+                </div>
+              </CardHeader>
+            </Card>
+          ))
+        )}
       </div>
     </div>
   );

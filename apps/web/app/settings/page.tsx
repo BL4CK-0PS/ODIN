@@ -4,12 +4,29 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
-import { useState } from "react";
+import { useSettingsStore } from "@/stores/settings";
 import { Settings, Shield, Bell } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useState } from "react";
 
 export default function SettingsPage() {
-  const [apiUrl, setApiUrl] = useState(process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1");
+  const apiUrl = useSettingsStore((s) => s.apiUrl);
+  const setApiUrl = useSettingsStore((s) => s.setApiUrl);
+  const [localUrl, setLocalUrl] = useState(apiUrl);
+
+  const { data: health } = useQuery({
+    queryKey: ["health"],
+    queryFn: async () => {
+      const res = await fetch(`${apiUrl}/system/health`);
+      const json = await res.json();
+      return json;
+    },
+    refetchInterval: 30_000,
+  });
+
+  const handleSave = () => {
+    setApiUrl(localUrl);
+  };
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -32,13 +49,17 @@ export default function SettingsPage() {
           <div>
             <label className="text-sm font-medium mb-1 block">API URL</label>
             <div className="flex gap-2">
-              <Input value={apiUrl} onChange={(e) => setApiUrl(e.target.value)} />
-              <Button variant="secondary">Save</Button>
+              <Input value={localUrl} onChange={(e) => setLocalUrl(e.target.value)} />
+              <Button variant="secondary" onClick={handleSave}>Save</Button>
             </div>
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <Badge variant="outline" className="text-green-400">Connected</Badge>
-            <span className="text-muted-foreground">v0.1.0</span>
+            {health?.success ? (
+              <Badge variant="outline" className="text-green-400">Connected</Badge>
+            ) : (
+              <Badge variant="outline" className="text-red-400">Disconnected</Badge>
+            )}
+            <span className="text-muted-foreground">{(health as any)?.data?.version ? `v${(health as any).data.version}` : ""}</span>
           </div>
         </CardContent>
       </Card>

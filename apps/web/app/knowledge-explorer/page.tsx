@@ -1,27 +1,30 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { KnowledgeGraph } from "@/components/KnowledgeGraph";
 import { SearchBar } from "@/components/SearchBar";
+import { useGlobalGraph } from "@/hooks/use-graph";
+import { useGraphStore } from "@/stores/graph";
 import { useState } from "react";
-
-const mockNodes = [
-  { id: "n1", type: "Process", label: "powershell.exe" },
-  { id: "n2", type: "Network", label: "evil-c2.com" },
-  { id: "n3", type: "Hash", label: "a1b2c3d4e5f6..." },
-  { id: "n4", type: "Registry", label: "HKLM\\SOFTWARE\\Malware" },
-  { id: "n5", type: "Domain", label: "phish.bad.com" },
-];
-
-const mockEdges = [
-  { source: "n1", target: "n2", label: "connected_to" },
-  { source: "n1", target: "n3", label: "created" },
-  { source: "n1", target: "n4", label: "modified" },
-  { source: "n5", target: "n2", label: "resolves_to" },
-];
 
 export default function KnowledgeExplorerPage() {
   const [query, setQuery] = useState("");
+  const { isLoading, error } = useGlobalGraph();
+  const nodes = useGraphStore((s) => s.nodes);
+  const edges = useGraphStore((s) => s.edges);
+
+  const filteredNodes = query
+    ? nodes.filter((n) => n.label.toLowerCase().includes(query.toLowerCase()) || n.type.toLowerCase().includes(query.toLowerCase()))
+    : nodes;
+
+  const filteredEdges = query
+    ? edges.filter((e) => {
+        const source = nodes.find((n) => n.id === e.source);
+        const target = nodes.find((n) => n.id === e.target);
+        return source && target && filteredNodes.includes(source) && filteredNodes.includes(target);
+      })
+    : edges;
 
   return (
     <div className="space-y-6">
@@ -32,7 +35,15 @@ export default function KnowledgeExplorerPage() {
 
       <SearchBar value={query} onChange={setQuery} placeholder="Filter entities..." />
 
-      <KnowledgeGraph nodes={mockNodes} edges={mockEdges} />
+      {isLoading ? (
+        <Card><CardContent className="p-6"><Skeleton className="h-96 w-full" /></CardContent></Card>
+      ) : error ? (
+        <Card><CardContent className="p-6 text-red-400">Failed to load graph: {(error as Error).message}</CardContent></Card>
+      ) : nodes.length === 0 ? (
+        <Card><CardContent className="p-6 text-muted-foreground">No entities found. Upload investigations to build the knowledge graph.</CardContent></Card>
+      ) : (
+        <KnowledgeGraph nodes={filteredNodes} edges={filteredEdges} />
+      )}
     </div>
   );
 }

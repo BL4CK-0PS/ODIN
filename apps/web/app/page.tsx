@@ -1,26 +1,60 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { UploadDropzone } from "@/components/UploadDropzone";
-import { api } from "@/lib/api";
-import { useState } from "react";
+import { useUploadInvestigation } from "@/hooks/use-investigation";
 import { Activity, Brain, Shield, AlertTriangle } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+
+const statIcons = {
+  investigations: Activity,
+  memories: Brain,
+  entities: Shield,
+  matches: AlertTriangle,
+} as const;
+
+const statColors = {
+  investigations: "text-blue-400",
+  memories: "text-purple-400",
+  entities: "text-green-400",
+  matches: "text-yellow-400",
+} as const;
 
 export default function Dashboard() {
-  const [uploading, setUploading] = useState(false);
+  const upload = useUploadInvestigation();
+
+  const { data: stats, isLoading } = useQuery({
+    queryKey: ["dashboard-stats"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/system/stats");
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || "Failed to fetch stats");
+      return json.data as {
+        investigations: number;
+        memories: number;
+        entities: number;
+        matches: number;
+      };
+    },
+  });
+
+  const statsConfig = [
+    { key: "investigations" as const, label: "Active Investigations" },
+    { key: "memories" as const, label: "Memory Objects" },
+    { key: "entities" as const, label: "Entities Tracked" },
+    { key: "matches" as const, label: "Similarity Matches" },
+  ];
 
   const handleUpload = async (file: File) => {
-    setUploading(true);
     const text = await file.text();
     const parsed = JSON.parse(text);
-    await api.uploadIncident({
+    await upload.mutateAsync({
       title: parsed.title || file.name,
       description: parsed.description || "",
       severity: parsed.severity || "medium",
       evidence: parsed.evidence || [],
     });
-    setUploading(false);
   };
 
   return (
@@ -31,22 +65,24 @@ export default function Dashboard() {
       </div>
 
       <div className="grid grid-cols-4 gap-4">
-        {[
-          { icon: Activity, label: "Active Investigations", value: "3", color: "text-blue-400" },
-          { icon: Brain, label: "Memory Objects", value: "12", color: "text-purple-400" },
-          { icon: Shield, label: "Entities Tracked", value: "47", color: "text-green-400" },
-          { icon: AlertTriangle, label: "Similarity Matches", value: "8", color: "text-yellow-400" },
-        ].map((stat) => (
-          <Card key={stat.label}>
-            <CardHeader className="flex-row items-center gap-3 space-y-0">
-              <stat.icon className={`h-5 w-5 ${stat.color}`} />
-              <CardTitle className="text-sm font-medium">{stat.label}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{stat.value}</p>
-            </CardContent>
-          </Card>
-        ))}
+        {statsConfig.map(({ key, label }) => {
+          const Icon = statIcons[key];
+          return (
+            <Card key={key}>
+              <CardHeader className="flex-row items-center gap-3 space-y-0">
+                <Icon className={`h-5 w-5 ${statColors[key]}`} />
+                <CardTitle className="text-sm font-medium">{label}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <Skeleton className="h-9 w-16" />
+                ) : (
+                  <p className="text-3xl font-bold">{stats?.[key] ?? "—"}</p>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       <Card>
@@ -55,7 +91,9 @@ export default function Dashboard() {
         </CardHeader>
         <CardContent>
           <UploadDropzone onUpload={handleUpload} />
-          {uploading && <p className="text-sm text-muted-foreground mt-2">Processing...</p>}
+          {upload.isPending && <p className="text-sm text-muted-foreground mt-2">Processing...</p>}
+          {upload.isSuccess && <p className="text-sm text-green-400 mt-2">Investigation uploaded successfully.</p>}
+          {upload.isError && <p className="text-sm text-red-400 mt-2">Upload failed: {(upload.error as Error).message}</p>}
         </CardContent>
       </Card>
     </div>

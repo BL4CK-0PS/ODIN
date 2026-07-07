@@ -1,6 +1,7 @@
 "use client";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TimelineView } from "@/components/TimelineView";
 import { NarrativeCard } from "@/components/NarrativeCard";
@@ -8,53 +9,72 @@ import { EvidenceTable } from "@/components/EvidenceTable";
 import { KnowledgeGraph } from "@/components/KnowledgeGraph";
 import { SimilarityCard } from "@/components/SimilarityCard";
 import { PlaybookCard } from "@/components/PlaybookCard";
+import { useInvestigation } from "@/hooks/use-investigation";
 import { useParams } from "next/navigation";
-
-const mockTimeline = [
-  { id: "e1", source: "Sysmon Event ID 1 — Process Creation", type: "Log", collected_at: "2026-07-06T10:00:00Z" },
-  { id: "e2", source: "Network Connection — 192.168.1.100:443", type: "NetworkCapture", collected_at: "2026-07-06T10:05:00Z" },
-  { id: "e3", source: "Registry Key Modification — HKLM\\SOFTWARE\\Malware", type: "FileSystemArtifact", collected_at: "2026-07-06T10:12:00Z" },
-];
-
-const mockEvidence = [
-  { id: "e1", source: "Process Creation Log", content_type: "Log", trust_score: 0.94 },
-  { id: "e2", source: "C2 Network Traffic", content_type: "NetworkCapture", trust_score: 0.88 },
-  { id: "e3", source: "Registry Artifact", content_type: "FileSystemArtifact", trust_score: 0.97 },
-];
-
-const mockNodes = [
-  { id: "n1", type: "Process", label: "powershell.exe" },
-  { id: "n2", type: "Network", label: "192.168.1.100:443" },
-  { id: "n3", type: "Registry", label: "HKLM\\SOFTWARE\\Malware" },
-];
-
-const mockEdges = [
-  { source: "n1", target: "n2", label: "connected_to" },
-  { source: "n1", target: "n3", label: "modified" },
-];
 
 export default function InvestigationPage() {
   const { id } = useParams<{ id: string }>();
+  const { data, isLoading, error } = useInvestigation(id);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-9 w-96" />
+        <Skeleton className="h-4 w-64" />
+        <div className="grid grid-cols-3 gap-4 mt-6">
+          <Skeleton className="h-48" />
+          <Skeleton className="h-48" />
+          <Skeleton className="h-48" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold">Investigation {id}</h1>
+        <Card><CardContent className="p-6 text-red-400">Failed to load investigation: {(error as Error).message}</CardContent></Card>
+      </div>
+    );
+  }
+
+  const incident = data?.incident as any;
+  const timeline = data?.timeline as any;
+  const graph = data?.graph as any;
+  const memory = data?.memory as any;
+  const playbooks = data?.playbooks as any;
+
+  const incTitle = incident?.title || `Investigation ${id}`;
+  const incDesc = incident?.description || "";
+  const timelineEvents = timeline?.events || [];
+  const graphNodes = graph?.nodes || [];
+  const graphEdges = graph?.edges || [];
+  const narrativeSummary = memory?.summary || incDesc;
+  const narrativeConfidence = memory?.confidence ?? 0.85;
+  const mitreTechniques = incident?.mitre_techniques || [];
+  const evidenceList = incident?.evidence_ids?.map((eid: string) => ({ id: eid, source: eid, content_type: "Log", trust_score: 0.5 })) || [];
+  const playbookSteps = playbooks?.playbooks?.[0]?.steps || ["Isolate affected systems", "Collect evidence", "Contain threat", "Remediate"];
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Investigation {id}</h1>
-          <p className="text-muted-foreground mt-1">Ransomware Outbreak — Finance Department</p>
+          <h1 className="text-3xl font-bold">{incTitle}</h1>
+          <p className="text-muted-foreground mt-1">{incDesc}</p>
         </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
         <NarrativeCard
-          summary="Initial compromise via phishing email. PowerShell process launched C2 connection to external IP. Registry persistence mechanism established."
-          confidence={0.91}
-          techniques={["T1059", "T1486", "T1547"]}
+          summary={narrativeSummary}
+          confidence={narrativeConfidence}
+          techniques={mitreTechniques}
         />
-        <EvidenceTable evidence={mockEvidence} />
+        <EvidenceTable evidence={evidenceList} />
         <PlaybookCard
-          name="Ransomware Response"
-          steps={["Isolate affected systems", "Block C2 domains", "Collect memory dumps", "Identify encryption scope"]}
+          name={playbooks?.playbooks?.[0]?.name || "Response Playbook"}
+          steps={playbookSteps}
         />
       </div>
 
@@ -68,17 +88,25 @@ export default function InvestigationPage() {
           <Card>
             <CardHeader><CardTitle>Event Timeline</CardTitle></CardHeader>
             <CardContent className="h-96">
-              <TimelineView events={mockTimeline} />
+              <TimelineView events={timelineEvents} />
             </CardContent>
           </Card>
         </TabsContent>
         <TabsContent value="graph">
-          <KnowledgeGraph nodes={mockNodes} edges={mockEdges} />
+          <KnowledgeGraph nodes={graphNodes} edges={graphEdges} />
         </TabsContent>
         <TabsContent value="similarity">
           <div className="grid grid-cols-2 gap-4">
-            <SimilarityCard title="Ransomware — HR Dept (2026-05)" score={0.92} reasons={["Same T1059", "Same PowerShell", "Same Registry Key"]} />
-            <SimilarityCard title="Phishing — Engineering (2026-04)" score={0.67} reasons={["Same T1566", "Different C2"]} />
+            <SimilarityCard
+              title="Ransomware — HR Dept (2026-05)"
+              score={0.92}
+              reasons={["Same T1059", "Same PowerShell", "Same Registry Key"]}
+            />
+            <SimilarityCard
+              title="Phishing — Engineering (2026-04)"
+              score={0.67}
+              reasons={["Same T1566", "Different C2"]}
+            />
           </div>
         </TabsContent>
       </Tabs>

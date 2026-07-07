@@ -1,4 +1,4 @@
-use crate::{IntelligenceObject, KernelError};
+use crate::{Confidence, ConfidenceSource, IntelligenceObject, KernelError, Provenance, SourceType};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -9,6 +9,7 @@ pub struct MemoryObject {
     pub summary: String,
     pub context: serde_json::Value,
     pub confidence: f64,
+    pub version: u64,
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub expires_at: Option<chrono::DateTime<chrono::Utc>>,
 }
@@ -26,6 +27,7 @@ impl MemoryObject {
             summary,
             context,
             confidence: confidence.clamp(0.0, 1.0),
+            version: 1,
             created_at: chrono::Utc::now(),
             expires_at: None,
         }
@@ -53,5 +55,20 @@ impl IntelligenceObject for MemoryObject {
             ));
         }
         Ok(())
+    }
+
+    fn confidence(&self) -> Confidence {
+        Confidence::new(vec![ConfidenceSource {
+            label: format!("memory:{}", self.id),
+            trust: self.confidence,
+        }])
+    }
+
+    fn provenance(&self) -> Provenance {
+        Provenance::new(
+            format!("memory:{}", self.incident_id),
+            SourceType::Other("memory".into()),
+            "system".into(),
+        )
     }
 }

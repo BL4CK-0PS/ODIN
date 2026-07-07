@@ -1,4 +1,4 @@
-use crate::{IntelligenceObject, KernelError};
+use crate::{Confidence, ConfidenceSource, IntelligenceObject, KernelError, Provenance, SourceType};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -12,6 +12,9 @@ pub struct CanonicalIncident {
     pub created_at: chrono::DateTime<chrono::Utc>,
     pub updated_at: chrono::DateTime<chrono::Utc>,
     pub tags: Vec<String>,
+    pub evidence_ids: Vec<String>,
+    pub entity_ids: Vec<String>,
+    pub mitre_techniques: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,6 +48,9 @@ impl CanonicalIncident {
             created_at: now,
             updated_at: now,
             tags: Vec::new(),
+            evidence_ids: Vec::new(),
+            entity_ids: Vec::new(),
+            mitre_techniques: Vec::new(),
         }
     }
 }
@@ -70,5 +76,16 @@ impl IntelligenceObject for CanonicalIncident {
             ));
         }
         Ok(())
+    }
+
+    fn confidence(&self) -> Confidence {
+        Confidence::new(vec![ConfidenceSource {
+            label: format!("incident:{}", self.id),
+            trust: 1.0,
+        }])
+    }
+
+    fn provenance(&self) -> Provenance {
+        Provenance::new(self.title.clone(), SourceType::Other("incident".into()), "system".into())
     }
 }

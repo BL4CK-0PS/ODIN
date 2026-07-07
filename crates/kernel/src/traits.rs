@@ -1,10 +1,12 @@
-use crate::KernelError;
+use crate::{Confidence, KernelError, Provenance};
 use std::fmt::Debug;
 
 pub trait IntelligenceObject: Debug + Send + Sync {
     fn id(&self) -> &str;
     fn object_type(&self) -> &'static str;
     fn validate(&self) -> Result<(), KernelError>;
+    fn confidence(&self) -> Confidence;
+    fn provenance(&self) -> Provenance;
 }
 
 pub trait Repository<T: IntelligenceObject>: Debug + Send + Sync {
@@ -13,13 +15,9 @@ pub trait Repository<T: IntelligenceObject>: Debug + Send + Sync {
     fn delete(&self, id: &str) -> Result<(), KernelError>;
 }
 
-pub trait ConfidenceScore: Debug + Send + Sync {
-    fn score(&self) -> f64;
-    fn propagate(&self, trust: f64) -> Box<dyn ConfidenceScore>;
-}
-
 pub trait DomainEvent: Debug + Send + Sync {
     fn event_type(&self) -> &'static str;
     fn aggregate_id(&self) -> &str;
     fn payload(&self) -> &str;
+    fn timestamp(&self) -> chrono::DateTime<chrono::Utc>;
 }

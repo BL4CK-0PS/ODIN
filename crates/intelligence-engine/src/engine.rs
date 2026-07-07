@@ -1,14 +1,19 @@
-use odin_kernel::KernelError;
+use crate::pipeline::{IntelligencePipeline, PipelineResult};
+use odin_kernel::{Evidence, KernelError};
 
-pub struct IntelligenceEngine;
+pub struct IntelligenceEngine {
+    pipeline: IntelligencePipeline,
+}
 
 impl IntelligenceEngine {
     pub fn new() -> Self {
-        Self
+        Self {
+            pipeline: IntelligencePipeline::new(),
+        }
     }
 
-    pub fn derive_intelligence(&self) -> Result<(), KernelError> {
-        Ok(())
+    pub fn analyze(&mut self, evidence: &[Evidence]) -> Result<PipelineResult, KernelError> {
+        self.pipeline.process_evidence(evidence)
     }
 }
 

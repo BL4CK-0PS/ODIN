@@ -1,4 +1,4 @@
-use crate::{IntelligenceObject, KernelError};
+use crate::{Confidence, ConfidenceSource, IntelligenceObject, KernelError, Provenance, SourceType};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -65,5 +65,20 @@ impl IntelligenceObject for Relationship {
             ));
         }
         Ok(())
+    }
+
+    fn confidence(&self) -> Confidence {
+        Confidence::new(vec![ConfidenceSource {
+            label: format!("relationship:{}", self.id),
+            trust: self.confidence,
+        }])
+    }
+
+    fn provenance(&self) -> Provenance {
+        Provenance::new(
+            format!("{}->{}", self.source_id, self.target_id),
+            SourceType::Other("relationship".into()),
+            "system".into(),
+        )
     }
 }

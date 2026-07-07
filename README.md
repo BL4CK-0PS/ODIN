@@ -49,18 +49,99 @@ See [docs/02_ARCHITECTURE](docs/02_ARCHITECTURE) for full architecture.
 
 ---
 
-## Team & Ownership
+## Team
 
-| Domain | Owner | Reviewer |
-|--------|-------|----------|
+ODIN is developed by a multidisciplinary team focused on cybersecurity, software engineering, and emerging technologies.
+
+---
+
+### Kishanth R
+**Project Lead · Full Stack Engineer · Cybersecurity Engineer**
+
+**Primary Responsibilities**
+- Product Architecture, Technical Leadership, Rust Backend, Next.js Frontend
+- API Design, Threat Memory Engine, Similarity Engine, Incident Reconstruction
+- AI Integration, System Integration, Final Demo & Presentation
+
+**Ownership:** Intelligence Engine, Memory Engine, Retrieval Engine, Decision Engine, Frontend, Overall System Architecture
+
+---
+
+### Dharshan
+**DevOps Engineer · Cybersecurity Engineer**
+
+**Primary Responsibilities**
+- Infrastructure Architecture, Docker & Containerization, CI/CD Pipelines
+- Deployment Automation, PostgreSQL Management, Qdrant & Neo4j Deployment
+- Monitoring & Observability, Backend Testing, Infrastructure Security
+
+**Ownership:** Infrastructure Layer, Deployment, Storage Layer, Monitoring, Security Operations
+
+---
+
+### Shreyanth
+**Cybersecurity Engineer · Cryptography & Quantum Security Researcher**
+
+**Primary Responsibilities**
+- Threat Intelligence, MITRE ATT&CK Mapping, Threat Modeling
+- Detection Engineering, Cryptographic Design, Quantum-Safe Security Research
+- Security Validation, Investigation Methodology, Security Documentation, Dataset Validation
+
+**Ownership:** Threat Intelligence, Security Domain, Investigation Models, Detection Logic, Security Research, Cryptographic Components
+
+---
+
+### Collaboration Model
+
+| Area | Owner | Reviewer |
+|-------|--------|----------|
 | System Architecture | Kishanth | Entire Team |
-| Backend / Frontend | Kishanth | Dharshan |
-| Infrastructure / DevOps | Dharshan | Kishanth |
-| Databases / Deployment | Dharshan | Kishanth |
-| Threat Intelligence / MITRE | Shreyanth | Kishanth |
-| Cryptography / Security | Shreyanth | Entire Team |
+| Backend | Kishanth | Dharshan |
+| Frontend | Kishanth | Dharshan |
+| Infrastructure | Dharshan | Kishanth |
+| DevOps | Dharshan | Kishanth |
+| Database | Dharshan | Kishanth |
+| Threat Intelligence | Shreyanth | Kishanth |
+| MITRE Mapping | Shreyanth | Kishanth |
+| Cryptography | Shreyanth | Entire Team |
+| Documentation | Entire Team | Project Lead |
+| Final Integration | Kishanth | Entire Team |
 
-Full team details and collaboration model in [docs/16_OPERATIONS/88_README.md](docs/16_OPERATIONS/88_README.md).
+---
+
+### Decision Ownership
+
+| Area | Owner | Reviewers |
+|------|-------|-----------|
+| Product Decisions | Kishanth | — |
+| Architecture Decisions | Kishanth | Entire Team |
+| Infrastructure Decisions | Dharshan | Kishanth |
+| Security Decisions | Shreyanth | Kishanth |
+| Final Release Approval | — | All Team Members |
+
+---
+
+### Development Workflow
+
+```
+Feature Branch → Development → Peer Review → Integration Testing → Main Branch → Demo Build
+```
+
+---
+
+### Communication
+
+**Daily Sync:** Progress, blockers, integration status.
+
+**Critical Changes:** Architecture changes require team discussion. API changes must be communicated before implementation. Database schema changes require coordination with all owners.
+
+---
+
+### Guiding Principle
+
+Every team member owns a domain, but the product belongs to the entire team.
+
+Individual ownership improves velocity. Shared responsibility ensures quality.
 
 ---
 

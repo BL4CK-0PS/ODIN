@@ -1,0 +1,19 @@
+[workspace]
+resolver = "2"
+
+members = [
+    "crates/kernel",
+    "crates/intelligence-engine",
+    "crates/memory-engine",
+    "crates/retrieval-engine",
+    "crates/decision-engine",
+    "crates/policy-gate",
+    "crates/odin-core",
+    "apps/api",
+    "apps/cli",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"

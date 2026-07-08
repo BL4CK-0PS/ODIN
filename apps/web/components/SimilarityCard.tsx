@@ -3,7 +3,7 @@
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
-import { Search } from "lucide-react";
+import { Search, Flame } from "lucide-react";
 
 interface SimilarityCardProps {
   title: string;
@@ -13,24 +13,80 @@ interface SimilarityCardProps {
 }
 
 export function SimilarityCard({ title, score, reasons, onClick }: SimilarityCardProps) {
-  const scoreColor = score >= 0.7 ? "text-green-400" : score >= 0.4 ? "text-yellow-400" : "text-red-400";
+  const isHigh = score >= 0.7;
+  const scoreColor = isHigh ? "stroke-green-400 text-green-400" : score >= 0.4 ? "stroke-yellow-400 text-yellow-400" : "stroke-red-400 text-red-400";
+  
+  // Circle geometry for the gauge ring
+  const radius = 18;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - score * circumference;
 
   return (
-    <Card className={cn("cursor-pointer transition-colors hover:border-primary/50", onClick && "cursor-pointer")} onClick={onClick}>
-      <CardHeader className="flex-row items-center justify-between space-y-0">
-        <div className="flex items-center gap-2">
-          <Search className="h-4 w-4 text-primary" />
-          <CardTitle className="text-sm">{title}</CardTitle>
+    <Card
+      className={cn(
+        "glass border border-border/40 hover:border-primary/40 hover:bg-card/70 transition-all duration-300 group shadow-md",
+        onClick && "cursor-pointer active:scale-[0.99]"
+      )}
+      onClick={onClick}
+    >
+      <CardHeader className="flex-row items-center justify-between pb-3 space-y-0">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/5 border border-primary/10 group-hover:bg-primary/10 transition-colors duration-300">
+            <Search className="h-4 w-4 text-primary" />
+          </div>
+          <div className="space-y-0.5">
+            <CardTitle className="text-sm font-semibold tracking-tight text-foreground group-hover:text-primary transition-colors duration-300">
+              {title}
+            </CardTitle>
+            {isHigh && (
+              <span className="inline-flex items-center gap-1 text-[10px] text-red-400/90 font-medium font-mono">
+                <Flame className="h-3 w-3 animate-bounce" />
+                Critical Similarity
+              </span>
+            )}
+          </div>
         </div>
-        <span className={cn("text-2xl font-mono font-bold", scoreColor)}>
-          {(score * 100).toFixed(0)}%
-        </span>
+
+        {/* Circular Progress Gauge */}
+        <div className="relative flex items-center justify-center w-12 h-12">
+          <svg className="w-12 h-12 -rotate-90">
+            <circle
+              cx="24"
+              cy="24"
+              r={radius}
+              className="score-ring-track"
+              strokeWidth="2.5"
+            />
+            <circle
+              cx="24"
+              cy="24"
+              r={radius}
+              className={cn("score-ring-fill transition-all duration-1000", scoreColor)}
+              strokeWidth="3"
+              strokeDasharray={circumference}
+              strokeDashoffset={strokeDashoffset}
+            />
+          </svg>
+          <span className={cn("absolute text-xs font-mono font-extrabold", scoreColor.split(" ")[1])}>
+            {(score * 100).toFixed(0)}
+          </span>
+        </div>
       </CardHeader>
+      
       <CardContent>
-        <div className="flex flex-wrap gap-1">
+        <div className="flex flex-wrap gap-1.5 pt-1">
           {reasons.map((r, i) => (
-            <Badge key={i} variant="outline" className="text-xs">{r}</Badge>
+            <Badge
+              key={i}
+              variant="outline"
+              className="text-[10px] font-mono py-0.5 px-2 bg-secondary/20 border-border/60 hover:bg-secondary/40 text-muted-foreground group-hover:text-foreground transition-colors duration-300"
+            >
+              {r}
+            </Badge>
           ))}
+          {reasons.length === 0 && (
+            <span className="text-xs text-muted-foreground italic">No similarity match reason factors recorded.</span>
+          )}
         </div>
       </CardContent>
     </Card>

@@ -1,15 +1,21 @@
 import { create } from "zustand";
 
-interface GraphNode {
+export interface GraphNode {
   id: string;
   type: string;
   label: string;
 }
 
-interface GraphEdge {
+export interface GraphEdge {
   source: string;
   target: string;
-  label: string;
+  type?: string;
+  label?: string;
+}
+
+export interface GraphData {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
 }
 
 interface GraphState {

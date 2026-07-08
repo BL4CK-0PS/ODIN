@@ -1,0 +1,52 @@
+{
+  "title": "Insider Data Theft - Departing Employee Intellectual Property Harvest",
+  "description": "Insider threat incident involving a departing employee systematically exfiltrating intellectual property over a 2-week period. Employee in R&D accessed source code repositories, database dumps, and design documents. Data exfiltrated via personal Google Drive, USB storage, and encrypted email attachments. T1537 T1052.001 T1567.002 T1025 T1114.002",
+  "severity": "Medium",
+  "evidence": [
+    {
+      "source": "HR System Log",
+      "content": "Employee Alice Chen (alice@company.com, Engineering Dept) submitted 2-week resignation notice on 2024-11-01, effective 2024-11-15. Termination reason: Joining competitor CyberDyne Systems. Risk level flagged: High. Department: Research & Development. T1562.001",
+      "content_type": "log"
+    },
+    {
+      "source": "GitLab Audit Log",
+      "content": "Repository clone: 12 repositories cloned by alice@company.com in 1 hour. Repositories: platform-core, ml-algorithms, patent-pending-ai, customer-data-pipeline, deployment-manifests, internal-libs. 7 of 12 normally accessed <1 time per month. Clone method: git clone over SSH. T1213 T1537",
+      "content_type": "log"
+    },
+    {
+      "source": "DLP Alert",
+      "content": "File upload to Google Drive detected: platform-core/src/algorithm/optimizer_v3.py (2.4MB). Classification: Proprietary/Restricted. User: alice@company.com from 192.168.5.100. Destination: alice.chen.personal@gmail.com Drive. Timestamp: 2024-11-02T10:15:00Z. T1567.002 T1537",
+      "content_type": "log"
+    },
+    {
+      "source": "USB Device Log",
+      "content": "USB mass storage device connected: SanDisk Extreme Pro 1TB (SN: AA0123456789) to workstation WS-RND-12 at 2024-11-03T14:00:00Z. Files copied: 15,234 files (12.4 GB) in 8 minutes. File types: .py, .xlsx, .pdf, .pptx, .dwg, .sql. T1052.001 T1025",
+      "content_type": "log"
+    },
+    {
+      "source": "Email Transport Log",
+      "content": "Email sent from alice@company.com to alice.chen.personal@gmail.com with 5 encrypted attachments (.zip protected with password 'ProjectPhoenix2024!'). Subject: 'Personal files - please delete after download'. Attachments: research_findings.zip, customer_pipeline_data.zip, ml_weights.zip. T1114.002 T1048.002",
+      "content_type": "log"
+    },
+    {
+      "source": "Database Audit Log",
+      "content": "psql connection to postgresql://db-analytics:5432/customer_data from 192.168.5.100. Queries: SELECT * FROM customer_contracts, SELECT * FROM pricing_tiers, SELECT * FROM pipeline_performance. 125,000 rows exported to CSV. Normal query volume: <500 rows/day. T1537 T1213",
+      "content_type": "log"
+    },
+    {
+      "source": "Windows Security Log 4663",
+      "content": "Access to \\\\fs-eng-01\\R&D\\Patent_Filings\\ by user alice@company.com. 47 documents accessed between 02:00-05:00 UTC over 14 days. Files: 'quantum_computing_patent_draft.pdf', 'novel_encryption_method.docx', 'ai_model_architecture_v4.pdf'. T1537 T1005",
+      "content_type": "log"
+    },
+    {
+      "source": "Printer Log",
+      "content": "1,250 pages printed by alice@company.com between 2024-11-01 and 2024-11-14. Normal baseline: 50 pages/month. Documents: source code listings, database schema diagrams, network topology maps. Color printing used for topology maps. T1052.001",
+      "content_type": "log"
+    },
+    {
+      "source": "Okta Access Log",
+      "content": "Okta API calls from alice@company.com at 2024-11-10T22:00:00Z. Actions: List all users (GET /api/v1/users), List all groups (GET /api/v1/groups), List all applications (GET /api/v1/apps). Not normal for R&D role. Possible reconnaissance before departure. T1087.002 T1069.003 T1526",
+      "content_type": "log"
+    }
+  ]
+}

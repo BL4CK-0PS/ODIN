@@ -1,0 +1,52 @@
+{
+  "title": "IoT Botnet Recruitment via Default Credentials - OT Network",
+  "description": "Compromise of IoT devices in building management system via default credential scanning. Attacker recruited IP cameras, HVAC controllers, and smart power meters into a Mirai-variant botnet. Compromised devices used for DDoS amplification and cryptocurrency mining. T1190 T1078.001 T1098 T1496 T1498 T1584.005",
+  "severity": "Medium",
+  "evidence": [
+    {
+      "source": "NIDS Alert",
+      "content": "Mass SSH scanning from 45.33.22.115 targeting OT subnet 10.200.0.0/24. 15,000 connection attempts in 2 minutes. Attempted credentials: root/root, admin/admin, admin/12345, admin/password, factory/factory, support/support. T1110 T1046 T1190",
+      "content_type": "log"
+    },
+    {
+      "source": "Device Log - Camera IP-01",
+      "content": "SSH login from 45.33.22.115 to 10.200.0.12 at 02:30 UTC. Credentials: admin:admin (factory default). Device: Hikvision DS-2CD2342WD-I. Firmware: V5.4.5 (no recent patches). T1078.001 T1190",
+      "content_type": "log"
+    },
+    {
+      "source": "Device Log - HVAC Controller",
+      "content": "Telnet login from 45.33.22.115 to 10.200.0.55 at 02:31 UTC. Credentials: factory:factory. Device: Johnson Controls FX-PCV1611. Industrial control system exposed to OT network. T1078.001 T0836",
+      "content_type": "log"
+    },
+    {
+      "source": "Network Flow",
+      "content": "Outbound traffic from 10.200.0.55 to 45.33.22.115:1337. Protocol: IRC. JOIN #botnet. User: [MIRAI]|CN|10.200.0.55|HVAC|armv7l. Received DDoS attack commands. T1571 T1498 T1584.005",
+      "content_type": "network"
+    },
+    {
+      "source": "Power Meter Log",
+      "content": "Power consumption anomaly on smart meter 10.200.0.88 (Schneider ION9000). Baseline: 150W. Current: 840W. Malware binary consuming CPU for cryptocurrency mining. Executable: /tmp/.systemd-updater. T1496",
+      "content_type": "log"
+    },
+    {
+      "source": "DNS Log",
+      "content": "DNS queries from compromised IoT devices to 45.33.22.115: 'cnc.botnet-attacker.net'. 2,000 queries/minute during active phase. Also resolved to 198.51.100.23 (secondary C2). Query types: A records for DDoS target 'victim-bank.com'. T1498 T1568.002",
+      "content_type": "network"
+    },
+    {
+      "source": "ISP Abuse Report",
+      "content": "DDoS attack originating from our IP range 10.200.0.0/24 against 'victim-bank.com'. Attack type: HTTP flood (Layer 7). Peak volume: 400 Gbps. Duration: 47 minutes. UDP amplification factor: 85x. Source ports: 53, 123, 1900. T1498 T1498.002",
+      "content_type": "log"
+    },
+    {
+      "source": "Firmware Analysis",
+      "content": "Malicious update pushed to IP cameras via TFTP from 45.33.22.115. File: firmware_v2.1.3.bin. Binary contains Mirai-derived DDoS module with HTTP, DNS, and UDP flood capabilities. Hash: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c. T1195 T1584.005",
+      "content_type": "file"
+    },
+    {
+      "source": "Firewall Log",
+      "content": "Ingress traffic from 41,000 unique source IPs targeting compromised IoT devices. Pattern consistent with DDoS amplification scan. Source ports: 80 (HTTP GET /), 443 (TLS SYN), 53 (DNS ANY query), 123 (NTP monlist). T1498.002 T1046",
+      "content_type": "network"
+    }
+  ]
+}

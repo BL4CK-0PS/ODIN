@@ -3,18 +3,96 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { TimelineView } from "@/components/TimelineView";
 import { NarrativeCard } from "@/components/NarrativeCard";
 import { EvidenceTable } from "@/components/EvidenceTable";
 import { KnowledgeGraph } from "@/components/KnowledgeGraph";
 import { SimilarityCard } from "@/components/SimilarityCard";
+import { SimilarityReason } from "@/components/SimilarityReason";
 import { PlaybookCard } from "@/components/PlaybookCard";
 import { useInvestigation } from "@/hooks/use-investigation";
+import { useSearchSimilar } from "@/hooks/use-search";
+import { api } from "@/lib/api";
 import { useParams } from "next/navigation";
+import { useState } from "react";
+import { ThumbsUp, ThumbsDown } from "lucide-react";
+import type { RankedResult, Evidence } from "@/lib/types";
+
+interface TimelineViewEvent {
+  id: string;
+  source: string;
+  type: string;
+  collected_at: string;
+}
+
+function FeedbackSection({ incidentId }: { incidentId: string }) {
+  const [rating, setRating] = useState<1 | -1 | null>(null);
+  const [feedback, setFeedback] = useState("");
+  const [submitted, setSubmitted] = useState(false);
+
+  const handleSubmit = async () => {
+    try {
+      await api.postFeedback(incidentId, feedback, rating === 1 ? 1 : 0);
+      setSubmitted(true);
+    } catch {
+      // silently fail
+    }
+  };
+
+  if (submitted) {
+    return (
+      <Card>
+        <CardContent className="p-4 text-sm text-green-400">
+          Thank you for your feedback. This helps improve threat memory accuracy.
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-sm">Was this analysis helpful?</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="flex gap-2">
+          <Button
+            variant={rating === 1 ? "default" : "outline"}
+            size="sm"
+            onClick={() => setRating(rating === 1 ? null : 1)}
+          >
+            <ThumbsUp className="h-4 w-4 mr-1" /> Yes
+          </Button>
+          <Button
+            variant={rating === -1 ? "default" : "outline"}
+            size="sm"
+            onClick={() => setRating(rating === -1 ? null : -1)}
+          >
+            <ThumbsDown className="h-4 w-4 mr-1" /> No
+          </Button>
+        </div>
+        {rating && (
+          <div className="space-y-2">
+            <Textarea
+              placeholder="Additional feedback..."
+              value={feedback}
+              onChange={(e) => setFeedback(e.target.value)}
+              className="text-sm"
+            />
+            <Button size="sm" onClick={handleSubmit}>Submit</Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function InvestigationPage() {
   const { id } = useParams<{ id: string }>();
   const { data, isLoading, error } = useInvestigation(id);
+  const { data: similarityData, isLoading: isSimLoading } = useSearchSimilar(id);
 
   if (isLoading) {
     return (
@@ -39,22 +117,36 @@ export default function InvestigationPage() {
     );
   }
 
-  const incident = data?.incident as any;
-  const timeline = data?.timeline as any;
-  const graph = data?.graph as any;
-  const memory = data?.memory as any;
-  const playbooks = data?.playbooks as any;
+  const incident = data?.incident;
+  const timeline = data?.timeline as { incident_id: string; events: unknown[] } | undefined;
+  const memory = data?.memory;
+  const graph = data?.graph as { nodes: unknown[]; edges: unknown[] } | undefined;
+  const playbooks = data?.playbooks as { incident_id: string; playbooks: unknown[] } | undefined;
 
   const incTitle = incident?.title || `Investigation ${id}`;
   const incDesc = incident?.description || "";
-  const timelineEvents = timeline?.events || [];
-  const graphNodes = graph?.nodes || [];
-  const graphEdges = graph?.edges || [];
   const narrativeSummary = memory?.summary || incDesc;
   const narrativeConfidence = memory?.confidence ?? 0.85;
-  const mitreTechniques = incident?.mitre_techniques || [];
-  const evidenceList = incident?.evidence_ids?.map((eid: string) => ({ id: eid, source: eid, content_type: "Log", trust_score: 0.5 })) || [];
-  const playbookSteps = playbooks?.playbooks?.[0]?.steps || ["Isolate affected systems", "Collect evidence", "Contain threat", "Remediate"];
+  const mitreTechniques: string[] = incident?.mitre_techniques || [];
+  const timelineEvents: unknown[] = timeline?.events || [];
+
+  const evidenceList: Evidence[] = timelineEvents.map((ev) => {
+    const e = ev as Record<string, unknown>;
+    return {
+      id: e.id as string,
+      source: e.source as string,
+      content_type: e.type as Evidence["content_type"],
+      trust_score: (e.trust_score as number) ?? 0.9,
+      content: (e.content as string) || "",
+      incident_id: id,
+      collected_at: (e.collected_at as string) || "",
+    };
+  });
+
+  const playbookSteps: string[] = (playbooks?.playbooks?.[0] as Record<string, unknown>)?.steps as string[] || ["Isolate affected systems", "Collect evidence", "Contain threat", "Remediate"];
+  const playbookName: string = (playbooks?.playbooks?.[0] as Record<string, unknown>)?.name as string || "Response Playbook";
+
+  const results: RankedResult[] = (similarityData || []).filter(r => r.memory?.incident_id !== id);
 
   return (
     <div className="space-y-6">
@@ -72,10 +164,13 @@ export default function InvestigationPage() {
           techniques={mitreTechniques}
         />
         <EvidenceTable evidence={evidenceList} />
-        <PlaybookCard
-          name={playbooks?.playbooks?.[0]?.name || "Response Playbook"}
-          steps={playbookSteps}
-        />
+        <div className="space-y-4">
+          <PlaybookCard
+            name={playbookName}
+            steps={playbookSteps}
+          />
+          <FeedbackSection incidentId={id} />
+        </div>
       </div>
 
       <Tabs defaultValue="timeline">
@@ -88,26 +183,48 @@ export default function InvestigationPage() {
           <Card>
             <CardHeader><CardTitle>Event Timeline</CardTitle></CardHeader>
             <CardContent className="h-96">
-              <TimelineView events={timelineEvents} />
+              <TimelineView events={timelineEvents as TimelineViewEvent[]} />
             </CardContent>
           </Card>
         </TabsContent>
         <TabsContent value="graph">
-          <KnowledgeGraph nodes={graphNodes} edges={graphEdges} />
+          <KnowledgeGraph nodes={(graph?.nodes || []) as any} edges={(graph?.edges || []) as any} />
         </TabsContent>
         <TabsContent value="similarity">
-          <div className="grid grid-cols-2 gap-4">
-            <SimilarityCard
-              title="Ransomware — HR Dept (2026-05)"
-              score={0.92}
-              reasons={["Same T1059", "Same PowerShell", "Same Registry Key"]}
-            />
-            <SimilarityCard
-              title="Phishing — Engineering (2026-04)"
-              score={0.67}
-              reasons={["Same T1566", "Different C2"]}
-            />
-          </div>
+          {isSimLoading ? (
+            <div className="grid grid-cols-2 gap-4">
+              <Skeleton className="h-24" />
+              <Skeleton className="h-24" />
+            </div>
+          ) : results.length === 0 ? (
+            <Card>
+              <CardContent className="p-6 text-muted-foreground">
+                No other similar investigations found in memory.
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                {results.map((r, i) => (
+                  <div key={i} className="space-y-2">
+                    <SimilarityCard
+                      title={String((r.memory?.context as Record<string, unknown>)?.title || r.memory?.summary || `Incident ${r.memory?.incident_id}`)}
+                      score={r.score?.overall ?? 0}
+                      reasons={r.reasons || []}
+                    />
+                    {r.reasons && r.reasons.length > 0 && (
+                      <SimilarityReason
+                        reasons={r.reasons.map((reason: string) => ({
+                          label: reason,
+                          matched: true,
+                        }))}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

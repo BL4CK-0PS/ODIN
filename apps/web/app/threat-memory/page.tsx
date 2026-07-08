@@ -40,7 +40,7 @@ export default function ThreatMemoryPage() {
         ) : (memories?.length ?? 0) === 0 ? (
           <Card><CardContent className="p-6 text-muted-foreground">No threat memories yet. They are created as investigations are processed.</CardContent></Card>
         ) : (
-          memories?.map((m: any) => (
+          memories?.map((m) => (
             <Card key={m.id}>
               <CardHeader className="flex-row items-start justify-between space-y-0">
                 <div className="space-y-1">

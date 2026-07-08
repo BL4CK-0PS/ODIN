@@ -1,0 +1,52 @@
+{
+  "title": "Container Escape & Cloud Metadata Theft - Kubernetes Cluster",
+  "description": "Container escape via exploited vulnerable application in Kubernetes pod, followed by cloud metadata API access, AWS credential theft, and privilege escalation via cluster-admin service account token. T1611 T1525 T1552.005 T1078.004 T1069.002",
+  "severity": "High",
+  "evidence": [
+    {
+      "source": "Kubernetes Audit Log",
+      "content": "Exec session started in pod/web-app-7d8f9c6b4-x9k2z in namespace production by user system:anonymous from IP 10.100.0.15. Command: /bin/sh -c 'cat /proc/1/environ'. Pod running image myapp:v1.0.3. T1611 T1609",
+      "content_type": "log"
+    },
+    {
+      "source": "Application Log",
+      "content": "Java deserialization exploit triggered via POST /api/v2/upload. Payload: ysoserial CommonsCollections6 'curl -s http://169.254.169.254/latest/meta-data/iam/security-credentials/'. CVE-2021-21349. T1190 T1525",
+      "content_type": "log"
+    },
+    {
+      "source": "CloudTrail Log",
+      "content": "AssumeRole API call from EC2 instance i-0abc1234def56789. Role: arn:aws:iam::123456789012:role/EKSNodeInstanceRole. Source IP: 10.100.0.15. Action: ec2:DescribeInstances with no filters. Describes all 542 instances in region us-east-1. T1613 T1525",
+      "content_type": "log"
+    },
+    {
+      "source": "CloudTrail Log 2",
+      "content": "CreateAccessKey API call by user eks-cluster-admin from IP 10.100.0.15. Access key created for user eks-cluster-admin with Active status. User has AdministratorAccess policy attached. T1098.001 T1078.004",
+      "content_type": "log"
+    },
+    {
+      "source": "Kubernetes Audit Log 2",
+      "content": "ClusterRoleBinding 'cluster-admin' modified. Subject: User 'eks-cluster-admin' now bound to ClusterRole 'cluster-admin'. Performed by kubectl from 10.100.0.15 using service account token mounted in pod. T1078.004 T1098",
+      "content_type": "log"
+    },
+    {
+      "source": "Sysdig/Falco Alert",
+      "content": "NOTABLE: Read of cloud provider metadata endpoint (169.254.169.254) from container web-app-7d8f9c6b4-x9k2z. Container attempting to access host network namespace. Security context: privileged=false, allowPrivilegeEscalation=false. T1611",
+      "content_type": "log"
+    },
+    {
+      "source": "Docker Daemon Log",
+      "content": "Container web-app-7d8f9c6b4-x9k2z attempted to mount host /var/run/docker.sock. Mount source: /host/var/run/docker.sock -> /var/run/docker.sock. Container already running, attempting to communicate with host Docker daemon for container creation with privileged flag. T1611 T1578.002",
+      "content_type": "log"
+    },
+    {
+      "source": "Network Capture",
+      "content": "Outbound connection from 10.100.0.15 to 45.33.22.115:443. TLS SNI: api.attacker-c2.com. Data: base64-encoded JSON with AWS credentials: {\"AccessKeyId\":\"AKIA...\",\"SecretAccessKey\":\"...\",\"Token\":\"...\"}. T1048.003 T1552.005",
+      "content_type": "network"
+    },
+    {
+      "source": "Secrets Store CSI Log",
+      "content": "Pod web-app-7d8f9c6b4-x9k2z requested secret 'db-master-password' from Vault at 03:20 UTC. Secret was mounted at /mnt/secrets/db-password. Normally only accessed by pods with service account 'web-app-sa'. T1552.001 T1552.005",
+      "content_type": "log"
+    }
+  ]
+}

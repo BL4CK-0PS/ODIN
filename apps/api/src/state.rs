@@ -10,11 +10,20 @@ use odin_core::odin_policy_gate::PolicyGate;
 pub type IncidentMap = Arc<RwLock<HashMap<String, CanonicalIncident>>>;
 pub type EvidenceMap = Arc<RwLock<HashMap<String, Vec<Evidence>>>>;
 pub type EntityMap = Arc<RwLock<HashMap<String, Vec<Entity>>>>;
+pub type FeedbackMap = Arc<RwLock<HashMap<String, Vec<FeedbackEntry>>>>;
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct FeedbackEntry {
+    pub feedback: String,
+    pub rating: u8,
+    pub created_at: String,
+}
 
 pub struct AppState {
     pub incidents: IncidentMap,
     pub evidence: EvidenceMap,
     pub entities: EntityMap,
+    pub feedback: FeedbackMap,
     pub memory: MemoryEngine,
     pub intelligence: Arc<RwLock<IntelligenceEngine>>,
     pub retrieval: RetrievalEngine,
@@ -28,6 +37,7 @@ impl AppState {
             incidents: Arc::new(RwLock::new(HashMap::new())),
             evidence: Arc::new(RwLock::new(HashMap::new())),
             entities: Arc::new(RwLock::new(HashMap::new())),
+            feedback: Arc::new(RwLock::new(HashMap::new())),
             memory: MemoryEngine::new(),
             intelligence: Arc::new(RwLock::new(IntelligenceEngine::new())),
             retrieval: RetrievalEngine::new(),

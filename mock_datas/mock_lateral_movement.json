@@ -1,0 +1,52 @@
+{
+  "title": "Kerberoasting & Lateral Movement via WMI - Engineering Dept",
+  "description": "Kerberoasting attack followed by WMI-based lateral movement across engineering network. Attacker compromised a domain user, requested TGS tickets for service accounts, cracked offline, then moved laterally via WMI to deploy credential access tools. T1558.003 T1047 T1552.001 T1021.003",
+  "severity": "High",
+  "evidence": [
+    {
+      "source": "Domain Controller Log 4769",
+      "content": "TGS request from 172.16.30.5 (WS-ENG-05) for service accounts: MSSQLSvc/sql-eng-prod.engineering.local, HTTP/fs-eng-01.engineering.local, CIFS/fs-eng-01.engineering.local. 450 requests in 5 minutes from user jdoe. T1558.003",
+      "content_type": "log"
+    },
+    {
+      "source": "Domain Controller Log 4776",
+      "content": "Credential validation failures from 172.16.30.5 for service accounts svc_sql, svc_backup_eng. 1,200 FAILED attempts followed by 3 SUCCESS events. T1110.003 T1558.003",
+      "content_type": "log"
+    },
+    {
+      "source": "Windows Event Log 4624",
+      "content": "Interactive logon from 172.16.30.5 to 172.16.30.120 (SQL-ENG-PROD) with user svc_sql. Logon type 3 (Network). Source workstation: WS-ENG-05. T1078 T1021.002",
+      "content_type": "log"
+    },
+    {
+      "source": "Sysmon Event 7",
+      "content": "Kernel module load: mimikatz.exe loaded on WS-ENG-05 at 03:12 UTC. Process: powershell.exe -Command Invoke-Mimikatz -DumpCerts. SHA256: 8a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8d7e6f5a4b3c2d1e0f. T1003.001 S0002",
+      "content_type": "log"
+    },
+    {
+      "source": "Sysmon Event 3",
+      "content": "Network connection from 172.16.30.120:52789 to 172.16.30.200:445 (FS-ENG-01). SMB2 protocol negotiation. Process: wmic.exe -interactive. T1047 T1021.002",
+      "content_type": "network"
+    },
+    {
+      "source": "WMI-Activity Log",
+      "content": "WMI event subscription created on SQL-ENG-PROD by svc_sql. Query: SELECT * FROM Win32_Process WHERE Name='notepad.exe'. Command: powershell -EncodedCommand ... T1047 T1059.001",
+      "content_type": "log"
+    },
+    {
+      "source": "Sysmon Event 11",
+      "content": "File creation: C:\\ProgramData\\Microsoft\\Crypto\\backup_script.ps1 on FS-ENG-01. Content includes Get-ChildItem -Path \\\\fs-eng-01\\Engineering\\Designs -Recurse | Compress-Archive -DestinationPath C:\\temp\\eng_data.zip. T1005 T1074.001",
+      "content_type": "file"
+    },
+    {
+      "source": "Network Capture",
+      "content": "SMB copy operation: \\\\fs-eng-01\\Engineering\\Designs\\*.* to 172.16.30.5\\C$\\temp\\ at 04:30 UTC. 350 MB transferred. Source user: svc_backup_eng. T1021.002 T1005",
+      "content_type": "network"
+    },
+    {
+      "source": "EDR Alert",
+      "content": "Process hierarchy on WS-ENG-05: svchost.exe -> wmiprvse.exe -> cmd.exe -> powershell.exe -> rundll32.exe (absolutely path: C:\\Users\\Public\\libraries\\zipfldr.dll). DLL side-loading detected. T1574.002 T1055.001",
+      "content_type": "log"
+    }
+  ]
+}

@@ -1,0 +1,52 @@
+{
+  "title": "Credential Harvesting via EvilGinx Proxy - Executive Spearphish",
+  "description": "Targeted spearphishing campaign against C-suite executives using EvilGinx2 reverse proxy to bypass MFA. Attackers cloned Microsoft 365 login page and intercepted real-time credentials and session tokens via adversary-in-the-middle proxy. T1557.002 T1566.002 T1539 T1056.006",
+  "severity": "High",
+  "evidence": [
+    {
+      "source": "Email Security Gateway",
+      "content": "Spearphishing email to CEO@company.com from 'IT Security & Support' <support@secure-portal-mfa.com>. Subject: 'Urgent: MFA re-enrollment required - action required within 24 hours'. Link: https://secure-portal-mfa.com/office365/login. DKIM: FAIL. SPF: softfail. T1566.002",
+      "content_type": "log"
+    },
+    {
+      "source": "DNS Log",
+      "content": "DNS query for secure-portal-mfa.com from 10.10.0.25 (CEO workstation). Resolved to 185.220.101.42. Domain registered 3 days ago via Njalla. Registrar: Namecheap. WHOIS privacy enabled. T1566 T1583.001",
+      "content_type": "log"
+    },
+    {
+      "source": "TLS Proxy Log",
+      "content": "TLS connection from 10.10.0.25 to 185.220.101.42:443. Certificate issued to *.secure-portal-mfa.com by Let's Encrypt. Actually serving a cloned Microsoft login page with real-time credential forwarding. T1557.002 T1583.002",
+      "content_type": "network"
+    },
+    {
+      "source": "Azure AD Sign-in Log",
+      "content": "Successful sign-in for CEO@company.com from IP 185.220.101.42 at 14:32 UTC. Authentication: MFA claim completed. Device: Windows (Unmanaged). Country: Estonia (unusual). No Conditional Access policy matched due to missing device compliance. T1539 T1078 T1557.002",
+      "content_type": "log"
+    },
+    {
+      "source": "Azure AD Audit Log",
+      "content": "Mailbox rule created by CEO@company.com: 'Forward all incoming email to ceo.forward2024@gmail.com'. Rule type: Inbox -> redirect. Created 15 seconds after sign-in from 185.220.101.42. T1564.002 T1114.003",
+      "content_type": "log"
+    },
+    {
+      "source": "Microsoft 365 Unified Audit Log",
+      "content": "Session token replay detected from IP 45.33.22.115 at 14:33 UTC. Token was issued 60 seconds earlier to IP 185.220.101.42. 42 API calls made: Mail.Read, Mail.Send, Contacts.Read, User.Read.All. T1539 T1528",
+      "content_type": "log"
+    },
+    {
+      "source": "Endpoint Detection",
+      "content": "Execution of update_checker.exe on CEO workstation at 14:31 UTC. Downloaded from https://secure-portal-mfa.com/update_checker.exe. SHA256: f1e2d3c4b5a6978876543210abcdef0123456789abcdef0123456789abcdef01. Binary modifies hosts file to add entry: 127.0.0.1 security.microsoft.com. T1562.001 T1071.001",
+      "content_type": "log"
+    },
+    {
+      "source": "Sysmon Event 12",
+      "content": "Registry modification: HKCU\\Software\\Microsoft\\Office\\16.0\\Outlook\\Security\\AllowClickOnceTrustLevel set to 0x1. Enables execution of ClickOnce applications from the cloned phishing site. T1112 T1204.002",
+      "content_type": "log"
+    },
+    {
+      "source": "DMS Log",
+      "content": "5 sensitive documents downloaded via API from CEO OneDrive: '2025_Strategic_Plan.pptx', 'M&A_Target_Analysis.xlsx', 'Board_Compensation.ods', 'Q4_Earnings_Draft.pdf', 'Cybersecurity_Audit_Findings.docx'. Exfiltrated at 14:35 UTC to IP 45.33.22.115. T1539 T1567.002",
+      "content_type": "log"
+    }
+  ]
+}

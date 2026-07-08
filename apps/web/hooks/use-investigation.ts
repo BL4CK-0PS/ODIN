@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useInvestigationStore } from "@/stores/investigation";
+import type { CanonicalIncident, RankedResult, MemoryObject } from "@/lib/types";
 
 export function useInvestigation(id: string) {
   const setIncident = useInvestigationStore((s) => s.setIncident);
@@ -17,9 +18,7 @@ export function useInvestigation(id: string) {
         api.getGraph(id),
         api.getPlaybooks(id),
       ]);
-      setIncident(incident as any);
-      setEvidence((incident as any).evidence || []);
-      setEntities((incident as any).entities || []);
+      setIncident(incident as unknown as CanonicalIncident);
       return { incident, timeline, memory, graph, playbooks };
     },
     enabled: !!id,
@@ -33,7 +32,7 @@ export function useInvestigations() {
       const res = await fetch("/api/v1/incidents");
       const json = await res.json();
       if (!json.success) throw new Error(json.error || "Failed to fetch investigations");
-      return json.data as any[];
+      return json.data as CanonicalIncident[];
     },
   });
 }

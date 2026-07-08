@@ -58,7 +58,7 @@ export default function InvestigationsPage() {
         {(incidents?.length ?? 0) === 0 ? (
           <Card><CardContent className="p-6 text-muted-foreground">No investigations found. Upload one from the Dashboard.</CardContent></Card>
         ) : (
-          incidents?.map((inc: any) => (
+          incidents?.map((inc) => (
             <Link key={inc.id} href={`/investigations/${inc.id}`}>
               <Card className="cursor-pointer transition-colors hover:border-primary/50">
                 <CardHeader className="flex-row items-start justify-between space-y-0">
@@ -72,7 +72,7 @@ export default function InvestigationsPage() {
                 </CardHeader>
                 <CardContent className="flex gap-2 flex-wrap">
                   <Badge variant="secondary">{inc.status}</Badge>
-                  {(inc.mitre_techniques || []).map((t: string) => (
+                  {(inc.mitre_techniques || []).map((t) => (
                     <Badge key={t} variant="outline">{t}</Badge>
                   ))}
                 </CardContent>

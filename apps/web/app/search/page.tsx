@@ -2,10 +2,12 @@
 
 import { SearchBar } from "@/components/SearchBar";
 import { SimilarityCard } from "@/components/SimilarityCard";
+import { SimilarityReason } from "@/components/SimilarityReason";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { useSearchQuery } from "@/hooks/use-search";
 import { useState } from "react";
+import type { RankedResult } from "@/lib/types";
 
 export default function SearchPage() {
   const [query, setQuery] = useState("");
@@ -43,13 +45,22 @@ export default function SearchPage() {
       )}
 
       <div className="space-y-3">
-        {results?.map((r: any, i: number) => (
-          <SimilarityCard
-            key={i}
-            title={r.memory?.summary || r.title || `Result ${i + 1}`}
-            score={r.score?.overall ?? r.score ?? 0}
-            reasons={r.reasons || []}
-          />
+        {results?.map((r: RankedResult, i: number) => (
+          <div key={i} className="space-y-2">
+            <SimilarityCard
+              title={r.memory?.summary || `Result ${i + 1}`}
+              score={r.score?.overall ?? 0}
+              reasons={r.reasons || []}
+            />
+            {r.reasons && r.reasons.length > 0 && (
+              <SimilarityReason
+                reasons={r.reasons.map((reason: string) => ({
+                  label: reason,
+                  matched: true,
+                }))}
+              />
+            )}
+          </div>
         ))}
       </div>
     </div>

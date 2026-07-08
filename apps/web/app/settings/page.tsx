@@ -5,17 +5,19 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useSettingsStore } from "@/stores/settings";
-import { Settings, Shield, Bell } from "lucide-react";
+import { Settings, Shield, Sun, Moon } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
 export default function SettingsPage() {
   const apiUrl = useSettingsStore((s) => s.apiUrl);
   const setApiUrl = useSettingsStore((s) => s.setApiUrl);
+  const theme = useSettingsStore((s) => s.theme);
+  const setTheme = useSettingsStore((s) => s.setTheme);
   const [localUrl, setLocalUrl] = useState(apiUrl);
 
   const { data: health } = useQuery({
-    queryKey: ["health"],
+    queryKey: ["health", apiUrl],
     queryFn: async () => {
       const res = await fetch(`${apiUrl}/system/health`);
       const json = await res.json();
@@ -27,6 +29,8 @@ export default function SettingsPage() {
   const handleSave = () => {
     setApiUrl(localUrl);
   };
+
+  const version = health?.data?.version as string | undefined;
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -59,7 +63,7 @@ export default function SettingsPage() {
             ) : (
               <Badge variant="outline" className="text-red-400">Disconnected</Badge>
             )}
-            <span className="text-muted-foreground">{(health as any)?.data?.version ? `v${(health as any).data.version}` : ""}</span>
+            {version && <span className="text-muted-foreground">v{version}</span>}
           </div>
         </CardContent>
       </Card>
@@ -67,12 +71,27 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Bell className="h-5 w-5 text-primary" />
-            <CardTitle>Notifications</CardTitle>
+            {theme === "dark" ? <Moon className="h-5 w-5 text-primary" /> : <Sun className="h-5 w-5 text-primary" />}
+            <CardTitle>Appearance</CardTitle>
           </div>
         </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">Notification preferences coming soon.</p>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Theme</p>
+              <p className="text-xs text-muted-foreground">Toggle between dark and light mode</p>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            >
+              {theme === "dark" ? (
+                <><Sun className="h-4 w-4 mr-2" /> Light Mode</>
+              ) : (
+                <><Moon className="h-4 w-4 mr-2" /> Dark Mode</>
+              )}
+            </Button>
+          </div>
         </CardContent>
       </Card>
     </div>

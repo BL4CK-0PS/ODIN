@@ -27,6 +27,7 @@ pub struct AppState {
     pub memory: MemoryEngine,
     pub intelligence: Arc<RwLock<IntelligenceEngine>>,
     pub retrieval: RetrievalEngine,
+    #[allow(dead_code)]
     pub decision: DecisionEngine,
     pub policy: PolicyGate,
 }

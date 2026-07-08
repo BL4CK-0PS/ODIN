@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UploadDropzone } from "@/components/UploadDropzone";
 import { useUploadInvestigation } from "@/hooks/use-investigation";
+import { useToast } from "@/hooks/use-toast";
 import { Activity, Brain, Shield, AlertTriangle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 
@@ -23,8 +24,9 @@ const statColors = {
 
 export default function Dashboard() {
   const upload = useUploadInvestigation();
+  const { toast } = useToast();
 
-  const { data: stats, isLoading } = useQuery({
+  const { data: stats, isLoading, error: statsError } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: async () => {
       const res = await fetch("/api/v1/system/stats");
@@ -37,6 +39,7 @@ export default function Dashboard() {
         matches: number;
       };
     },
+    retry: 2,
   });
 
   const statsConfig = [
@@ -47,14 +50,39 @@ export default function Dashboard() {
   ];
 
   const handleUpload = async (file: File) => {
-    const text = await file.text();
-    const parsed = JSON.parse(text);
-    await upload.mutateAsync({
-      title: parsed.title || file.name,
-      description: parsed.description || "",
-      severity: parsed.severity || "medium",
-      evidence: parsed.evidence || [],
-    });
+    try {
+      const text = await file.text();
+
+      let parsed: Record<string, unknown>;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        toast({
+          title: "Invalid JSON",
+          description: "The file does not contain valid JSON.",
+          variant: "error",
+        });
+        return;
+      }
+
+      const result = await upload.mutateAsync({
+        title: String(parsed.title || file.name),
+        description: String(parsed.description || ""),
+        severity: String(parsed.severity || "medium"),
+        evidence: (parsed.evidence as any[]) || [],
+      });
+      toast({
+        title: "Investigation uploaded",
+        description: `${result.title} (${result.evidence_count} evidence items, ${result.entity_count} entities)`,
+        variant: "success",
+      });
+    } catch (err) {
+      toast({
+        title: "Upload failed",
+        description: err instanceof Error ? err.message : "An unexpected error occurred",
+        variant: "error",
+      });
+    }
   };
 
   return (
@@ -85,15 +113,25 @@ export default function Dashboard() {
         })}
       </div>
 
+      {statsError && (
+        <Card className="border-yellow-400/30">
+          <CardContent className="p-4 text-sm text-yellow-400">
+            Could not load live stats. API may be unavailable.
+          </CardContent>
+        </Card>
+      )}
+
       <Card>
         <CardHeader>
           <CardTitle>Upload Investigation</CardTitle>
         </CardHeader>
         <CardContent>
           <UploadDropzone onUpload={handleUpload} />
-          {upload.isPending && <p className="text-sm text-muted-foreground mt-2">Processing...</p>}
-          {upload.isSuccess && <p className="text-sm text-green-400 mt-2">Investigation uploaded successfully.</p>}
-          {upload.isError && <p className="text-sm text-red-400 mt-2">Upload failed: {(upload.error as Error).message}</p>}
+          {upload.isPending && (
+            <p className="text-sm text-muted-foreground mt-2 animate-pulse">
+              Processing investigation...
+            </p>
+          )}
         </CardContent>
       </Card>
     </div>

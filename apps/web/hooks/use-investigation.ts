@@ -1,12 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useInvestigationStore } from "@/stores/investigation";
-import type { CanonicalIncident, RankedResult, MemoryObject } from "@/lib/types";
+import type { CanonicalIncident } from "@/lib/types";
 
 export function useInvestigation(id: string) {
   const setIncident = useInvestigationStore((s) => s.setIncident);
-  const setEvidence = useInvestigationStore((s) => s.setEvidence);
-  const setEntities = useInvestigationStore((s) => s.setEntities);
 
   return useQuery({
     queryKey: ["investigation", id],
@@ -22,6 +20,8 @@ export function useInvestigation(id: string) {
       return { incident, timeline, memory, graph, playbooks };
     },
     enabled: !!id,
+    retry: 2,
+    staleTime: 15_000,
   });
 }
 
@@ -34,16 +34,23 @@ export function useInvestigations() {
       if (!json.success) throw new Error(json.error || "Failed to fetch investigations");
       return json.data as CanonicalIncident[];
     },
+    retry: 2,
+    staleTime: 15_000,
   });
 }
 
 export function useUploadInvestigation() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (body: { title: string; description: string; severity: string; evidence: { source: string; content: string; content_type: string }[] }) =>
-      api.uploadIncident(body),
+    mutationFn: (body: {
+      title: string;
+      description: string;
+      severity: string;
+      evidence: { source: string; content: string; content_type: string }[];
+    }) => api.uploadIncident(body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["investigations"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
     },
   });
 }

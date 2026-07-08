@@ -10,6 +10,8 @@ export function useSearchSimilar(incidentId: string | null, topK = 5) {
       return res.results as RankedResult[];
     },
     enabled: !!incidentId,
+    retry: 1,
+    staleTime: 30_000,
   });
 }
 
@@ -27,5 +29,7 @@ export function useSearchQuery(query: string) {
       return json.data.results as RankedResult[];
     },
     enabled: query.length > 2,
+    retry: 1,
+    staleTime: 15_000,
   });
 }

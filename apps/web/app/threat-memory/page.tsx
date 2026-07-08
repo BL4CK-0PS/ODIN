@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { useThreatMemories } from "@/hooks/use-threat-memory";
-import { Brain, Clock } from "lucide-react";
+import { Brain, Clock, AlertCircle } from "lucide-react";
 
 export default function ThreatMemoryPage() {
   const { data: memories, isLoading, error } = useThreatMemories();
@@ -36,9 +36,18 @@ export default function ThreatMemoryPage() {
             </Card>
           ))
         ) : error ? (
-          <Card><CardContent className="p-6 text-red-400">Failed to load memories: {(error as Error).message}</CardContent></Card>
+          <Card>
+            <CardContent className="p-6 text-red-400 flex items-center gap-2">
+              <AlertCircle className="h-4 w-4" />
+              Failed to load memories: {(error as Error).message}
+            </CardContent>
+          </Card>
         ) : (memories?.length ?? 0) === 0 ? (
-          <Card><CardContent className="p-6 text-muted-foreground">No threat memories yet. They are created as investigations are processed.</CardContent></Card>
+          <Card>
+            <CardContent className="p-6 text-muted-foreground">
+              No threat memories yet. They are created as investigations are processed.
+            </CardContent>
+          </Card>
         ) : (
           memories?.map((m) => (
             <Card key={m.id}>

@@ -14,6 +14,7 @@ import { SimilarityReason } from "@/components/SimilarityReason";
 import { PlaybookCard } from "@/components/PlaybookCard";
 import { useInvestigation } from "@/hooks/use-investigation";
 import { useSearchSimilar } from "@/hooks/use-search";
+import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { useParams } from "next/navigation";
 import { useState } from "react";
@@ -31,13 +32,23 @@ function FeedbackSection({ incidentId }: { incidentId: string }) {
   const [rating, setRating] = useState<1 | -1 | null>(null);
   const [feedback, setFeedback] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const { toast } = useToast();
 
   const handleSubmit = async () => {
+    setSubmitting(true);
     try {
       await api.postFeedback(incidentId, feedback, rating === 1 ? 1 : 0);
       setSubmitted(true);
-    } catch {
-      // silently fail
+      toast({ title: "Feedback submitted", variant: "success" });
+    } catch (err) {
+      toast({
+        title: "Failed to submit feedback",
+        description: err instanceof Error ? err.message : undefined,
+        variant: "error",
+      });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -80,8 +91,16 @@ function FeedbackSection({ incidentId }: { incidentId: string }) {
               value={feedback}
               onChange={(e) => setFeedback(e.target.value)}
               className="text-sm"
+              maxLength={5000}
             />
-            <Button size="sm" onClick={handleSubmit}>Submit</Button>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                {feedback.length}/5000
+              </span>
+              <Button size="sm" onClick={handleSubmit} disabled={submitting}>
+                {submitting ? "Submitting..." : "Submit"}
+              </Button>
+            </div>
           </div>
         )}
       </CardContent>
@@ -112,7 +131,11 @@ export default function InvestigationPage() {
     return (
       <div className="space-y-6">
         <h1 className="text-3xl font-bold">Investigation {id}</h1>
-        <Card><CardContent className="p-6 text-red-400">Failed to load investigation: {(error as Error).message}</CardContent></Card>
+        <Card>
+          <CardContent className="p-6 text-red-400">
+            Failed to load investigation: {(error as Error).message}
+          </CardContent>
+        </Card>
       </div>
     );
   }

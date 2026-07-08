@@ -16,6 +16,8 @@ export function useInvestigationGraph(incidentId: string | null) {
       return data;
     },
     enabled: !!incidentId,
+    retry: 1,
+    staleTime: 30_000,
   });
 }
 
@@ -34,5 +36,7 @@ export function useGlobalGraph() {
       setEdges(data.edges);
       return data;
     },
+    retry: 1,
+    staleTime: 30_000,
   });
 }

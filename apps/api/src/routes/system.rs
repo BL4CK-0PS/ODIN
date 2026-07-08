@@ -1,3 +1,4 @@
+use crate::error::AppError;
 use axum::Json;
 use serde::Serialize;
 use axum::extract::State;
@@ -23,13 +24,13 @@ pub struct StatsResponse {
 pub async fn health() -> Json<HealthResponse> {
     Json(HealthResponse {
         status: "OK".into(),
-        version: "0.1.0".into(),
+        version: env!("CARGO_PKG_VERSION").into(),
     })
 }
 
 pub async fn version() -> Json<serde_json::Value> {
     Json(serde_json::json!({
-        "version": "0.1.0",
+        "version": env!("CARGO_PKG_VERSION"),
         "name": "ODIN - Operational Defense Intelligence Network",
         "build": env!("CARGO_PKG_VERSION"),
     }))
@@ -37,7 +38,7 @@ pub async fn version() -> Json<serde_json::Value> {
 
 pub async fn stats(
     State(state): State<Arc<AppState>>,
-) -> (StatusCode, Json<ApiResponse<StatsResponse>>) {
+) -> Result<(StatusCode, Json<ApiResponse<StatsResponse>>), AppError> {
     let investigations = match state.incidents.read() {
         Ok(incidents) => incidents.len(),
         Err(_) => 0,
@@ -59,7 +60,7 @@ pub async fn stats(
 
     let mut matches = 0;
     if let Ok(incidents) = state.incidents.read() {
-        let candidates = state.memory.list_all().unwrap_or_default();
+        let candidates = if let Ok(m) = state.memory.list_all() { m } else { Vec::new() };
         for query in incidents.values() {
             if let Ok(results) = state.retrieval.search(query, &candidates, 10) {
                 for res in results {
@@ -71,10 +72,10 @@ pub async fn stats(
         }
     }
 
-    ApiResponse::ok(StatsResponse {
+    Ok(ApiResponse::ok(StatsResponse {
         investigations,
         memories,
         entities,
         matches,
-    })
+    }))
 }

@@ -5,9 +5,19 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useSettingsStore } from "@/stores/settings";
-import { Settings, Shield, Sun, Moon } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Settings, Shield, Sun, Moon, Save } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useState, useCallback } from "react";
+
+function isValidUrl(str: string) {
+  try {
+    const url = new URL(str);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
 export default function SettingsPage() {
   const apiUrl = useSettingsStore((s) => s.apiUrl);
@@ -15,20 +25,45 @@ export default function SettingsPage() {
   const theme = useSettingsStore((s) => s.theme);
   const setTheme = useSettingsStore((s) => s.setTheme);
   const [localUrl, setLocalUrl] = useState(apiUrl);
+  const [urlError, setUrlError] = useState<string | null>(null);
+  const { toast } = useToast();
 
-  const { data: health } = useQuery({
+  const { data: health, isError: healthError } = useQuery({
     queryKey: ["health", apiUrl],
     queryFn: async () => {
-      const res = await fetch(`${apiUrl}/system/health`);
+      const res = await fetch(`${apiUrl}/system/health`, {
+        signal: AbortSignal.timeout(5000),
+      });
       const json = await res.json();
       return json;
     },
     refetchInterval: 30_000,
+    retry: 1,
   });
 
-  const handleSave = () => {
-    setApiUrl(localUrl);
-  };
+  const handleSave = useCallback(() => {
+    const trimmed = localUrl.trim().replace(/\/+$/, "");
+    if (!trimmed) {
+      setUrlError("API URL is required");
+      return;
+    }
+    if (!isValidUrl(trimmed)) {
+      setUrlError("Must be a valid HTTP or HTTPS URL");
+      return;
+    }
+    setUrlError(null);
+    setApiUrl(trimmed);
+    toast({
+      title: "API URL updated",
+      description: trimmed,
+      variant: "success",
+    });
+  }, [localUrl, setApiUrl, toast]);
+
+  const handleUrlChange = useCallback((value: string) => {
+    setLocalUrl(value);
+    setUrlError(null);
+  }, []);
 
   const version = health?.data?.version as string | undefined;
 
@@ -51,17 +86,34 @@ export default function SettingsPage() {
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <label className="text-sm font-medium mb-1 block">API URL</label>
+            <label className="text-sm font-medium mb-1 block" htmlFor="api-url">
+              API URL
+            </label>
             <div className="flex gap-2">
-              <Input value={localUrl} onChange={(e) => setLocalUrl(e.target.value)} />
-              <Button variant="secondary" onClick={handleSave}>Save</Button>
+              <div className="flex-1 space-y-1">
+                <Input
+                  id="api-url"
+                  value={localUrl}
+                  onChange={(e) => handleUrlChange(e.target.value)}
+                  placeholder="http://localhost:3001/api/v1"
+                  className={urlError ? "border-red-400" : ""}
+                />
+                {urlError && (
+                  <p className="text-xs text-red-400">{urlError}</p>
+                )}
+              </div>
+              <Button variant="secondary" onClick={handleSave}>
+                <Save className="h-4 w-4 mr-1" /> Save
+              </Button>
             </div>
           </div>
           <div className="flex items-center gap-2 text-sm">
-            {health?.success ? (
+            {healthError ? (
+              <Badge variant="outline" className="text-red-400">Disconnected</Badge>
+            ) : health?.success ? (
               <Badge variant="outline" className="text-green-400">Connected</Badge>
             ) : (
-              <Badge variant="outline" className="text-red-400">Disconnected</Badge>
+              <Badge variant="outline" className="text-yellow-400">Checking...</Badge>
             )}
             {version && <span className="text-muted-foreground">v{version}</span>}
           </div>
@@ -71,7 +123,11 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            {theme === "dark" ? <Moon className="h-5 w-5 text-primary" /> : <Sun className="h-5 w-5 text-primary" />}
+            {theme === "dark" ? (
+              <Moon className="h-5 w-5 text-primary" />
+            ) : (
+              <Sun className="h-5 w-5 text-primary" />
+            )}
             <CardTitle>Appearance</CardTitle>
           </div>
         </CardHeader>
@@ -79,7 +135,9 @@ export default function SettingsPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium">Theme</p>
-              <p className="text-xs text-muted-foreground">Toggle between dark and light mode</p>
+              <p className="text-xs text-muted-foreground">
+                Toggle between dark and light mode
+              </p>
             </div>
             <Button
               variant="outline"

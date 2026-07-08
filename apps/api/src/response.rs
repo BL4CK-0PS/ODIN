@@ -31,6 +31,7 @@ impl<T: Serialize> ApiResponse<T> {
         )
     }
 
+    #[allow(dead_code)]
     pub fn err(status: StatusCode, msg: impl Into<String>) -> (StatusCode, Json<Self>) {
         (
             status,

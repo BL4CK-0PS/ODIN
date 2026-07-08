@@ -2,6 +2,98 @@ import type { ApiResponse, CanonicalIncident, RankedResult, MemoryObject } from 
 import type { GraphData } from "@/stores/graph";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
+const DEFAULT_TIMEOUT = 30_000;
+const MAX_RETRIES = 3;
+const BASE_DELAY = 500;
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status?: number,
+    public code?: string,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+class NetworkError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "NetworkError";
+  }
+}
+
+async function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function request<T>(
+  path: string,
+  opts?: RequestInit & { timeout?: number },
+): Promise<T> {
+  const timeout = opts?.timeout ?? DEFAULT_TIMEOUT;
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+  let lastError: Error | null = null;
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      if (attempt > 0) {
+        const jitter = Math.random() * 200;
+        await delay(Math.min(BASE_DELAY * Math.pow(2, attempt) + jitter, 10_000));
+      }
+
+      const res = await fetch(`${BASE}${path}`, {
+        headers: { "Content-Type": "application/json", ...opts?.headers },
+        signal: controller.signal,
+        ...opts,
+      });
+
+      if (!res.ok && res.status >= 500) {
+        throw new ApiError(
+          `Server error: ${res.status}`,
+          res.status,
+          "SERVER_ERROR",
+        );
+      }
+
+      const json: ApiResponse<T> = await res.json();
+
+      if (!json.success) {
+        throw new ApiError(
+          json.error || "Unknown error",
+          res.status,
+          "API_ERROR",
+        );
+      }
+
+      return json.data as T;
+    } catch (err) {
+      lastError = err as Error;
+
+      if (err instanceof ApiError && err.status && err.status < 500) {
+        throw err; // Don't retry client errors (4xx)
+      }
+
+      if (err instanceof DOMException && err.name === "AbortError") {
+        throw new NetworkError(`Request timed out after ${timeout}ms`);
+      }
+
+      if (attempt === MAX_RETRIES - 1) {
+        throw err; // Last attempt, propagate
+      }
+    } finally {
+      if (attempt === MAX_RETRIES - 1) {
+        clearTimeout(timeoutId);
+      }
+    }
+  }
+
+  clearTimeout(timeoutId);
+  throw lastError || new Error("Unknown error");
+}
 
 export interface TimelineData {
   incident_id: string;
@@ -13,20 +105,13 @@ export interface PlaybookResponse {
   playbooks: unknown[];
 }
 
-async function request<T>(path: string, opts?: RequestInit): Promise<T> {
-  const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json", ...opts?.headers },
-    ...opts,
-  });
-  const json: ApiResponse<T> = await res.json();
-  if (!json.success) throw new Error(json.error || "Unknown error");
-  return json.data as T;
-}
-
 export const api = {
   health: () => request<{ status: string; version: string }>("/system/health"),
 
-  version: () => request<{ version: string; name: string; build: string }>("/system/version"),
+  version: () =>
+    request<{ version: string; name: string; build: string }>(
+      "/system/version",
+    ),
 
   uploadIncident: (body: {
     title: string;
@@ -34,17 +119,27 @@ export const api = {
     severity: string;
     evidence: { source: string; content: string; content_type: string }[];
   }) =>
-    request<{ id: string; title: string; severity: string; status: string; evidence_count: number; entity_count: number }>("/incidents/upload", {
+    request<{
+      id: string;
+      title: string;
+      severity: string;
+      status: string;
+      evidence_count: number;
+      entity_count: number;
+    }>("/incidents/upload", {
       method: "POST",
       body: JSON.stringify(body),
+      timeout: 60_000,
     }),
 
-  getIncident: (id: string) => request<CanonicalIncident>(`/incidents/${id}`),
+  getIncident: (id: string) =>
+    request<CanonicalIncident>(`/incidents/${id}`),
 
   getTimeline: (id: string) =>
     request<TimelineData>(`/incidents/${id}/timeline`),
 
-  getMemory: (id: string) => request<MemoryObject>(`/incidents/${id}/memory`),
+  getMemory: (id: string) =>
+    request<MemoryObject>(`/incidents/${id}/memory`),
 
   getGraph: (id: string) =>
     request<GraphData>(`/incidents/${id}/graph`),

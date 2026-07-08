@@ -7,6 +7,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent } from "@/components/ui/card";
 import { useSearchQuery } from "@/hooks/use-search";
 import { useState } from "react";
+import { AlertCircle } from "lucide-react";
 import type { RankedResult } from "@/lib/types";
 
 export default function SearchPage() {
@@ -22,7 +23,7 @@ export default function SearchPage() {
 
       <SearchBar value={query} onChange={setQuery} />
 
-      {query.length <= 2 && (
+      {query.length > 0 && query.length <= 2 && (
         <p className="text-sm text-muted-foreground">Enter at least 3 characters to search.</p>
       )}
 
@@ -37,11 +38,20 @@ export default function SearchPage() {
       )}
 
       {error && (
-        <Card><CardContent className="p-4 text-red-400">Search failed: {(error as Error).message}</CardContent></Card>
+        <Card>
+          <CardContent className="p-4 text-red-400 flex items-center gap-2">
+            <AlertCircle className="h-4 w-4" />
+            Search failed: {(error as Error).message}
+          </CardContent>
+        </Card>
       )}
 
       {results && results.length === 0 && query.length > 2 && (
-        <Card><CardContent className="p-4 text-muted-foreground">No results found for &ldquo;{query}&rdquo;.</CardContent></Card>
+        <Card>
+          <CardContent className="p-4 text-muted-foreground">
+            No results found for &ldquo;{query}&rdquo;. Try different keywords.
+          </CardContent>
+        </Card>
       )}
 
       <div className="space-y-3">

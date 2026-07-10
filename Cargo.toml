@@ -9,6 +9,7 @@ members = [
     "crates/decision-engine",
     "crates/policy-gate",
     "crates/odin-core",
+    "crates/infrastructure",
     "apps/api",
     "apps/cli",
 ]

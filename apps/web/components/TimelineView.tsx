@@ -55,21 +55,21 @@ export function TimelineView({ events }: TimelineViewProps) {
                 className={cn(
                   "absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border bg-background flex items-center justify-center transition-all duration-300 group-hover:scale-110",
                   isLatest
-                    ? "border-primary pulse-dot"
+                    ? "border-accent-foreground pulse-dot"
                     : "border-muted-foreground/50"
                 )}
-                style={isLatest ? { backgroundColor: "hsl(var(--primary) / 0.2)" } : undefined}
+                style={isLatest ? { backgroundColor: "hsl(var(--accent-foreground) / 0.15)" } : undefined}
               >
                 <div
                   className={cn(
                     "w-1.5 h-1.5 rounded-full",
-                    isLatest ? "bg-primary" : "bg-muted-foreground/60"
+                    isLatest ? "bg-accent-foreground" : "bg-muted-foreground/60"
                   )}
                 />
               </div>
 
               {/* Event Card Content */}
-              <div className="p-4 rounded-xl border border-border/40 bg-card/40 backdrop-blur-sm transition-all duration-300 group-hover:border-primary/30 group-hover:bg-card/70 group-hover:-translate-y-0.5">
+              <div className="p-4 rounded-xl border border-border/40 bg-card/40 backdrop-blur-sm transition-all duration-300 group-hover:border-accent-foreground/20 group-hover:bg-card/70 group-hover:-translate-y-0.5">
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                   <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
                     <Clock className="h-3.5 w-3.5" />

@@ -77,6 +77,28 @@ fn validate_upload(req: &UploadRequest) -> Result<(), AppError> {
     Ok(())
 }
 
+fn parse_evidence_type(s: &str) -> EvidenceType {
+    match s.to_lowercase().as_str() {
+        "log" => EvidenceType::Log,
+        "network" => EvidenceType::NetworkCapture,
+        "file" => EvidenceType::FileSystemArtifact,
+        "memory" => EvidenceType::MemoryDump,
+        "threat_intel" => EvidenceType::ThreatIntelReport,
+        "report" => EvidenceType::UserReport,
+        _ => EvidenceType::Other(s.to_string()),
+    }
+}
+
+fn format_severity(s: &Severity) -> &'static str {
+    match s {
+        Severity::Critical => "Critical",
+        Severity::High => "High",
+        Severity::Medium => "Medium",
+        Severity::Low => "Low",
+        Severity::Informational => "Informational",
+    }
+}
+
 fn extract_mitre_techniques(text: &str) -> Vec<String> {
     let mut techniques = Vec::new();
     for word in text.split(|c: char| !c.is_alphanumeric()) {
@@ -91,7 +113,6 @@ fn extract_mitre_techniques(text: &str) -> Vec<String> {
 
 fn extract_entities_from_content(content: &str) -> Vec<(EntityType, String)> {
     let mut entities = Vec::new();
-
     let words: Vec<&str> = content.split(|c: char| c.is_whitespace() || c == ',' || c == ';' || c == '=' || c == '"' || c == '\'').collect();
 
     for word in words {
@@ -165,22 +186,11 @@ pub async fn upload(
     let mut ext_entities = Vec::new();
 
     for e in req.evidence {
-        let ct = match e.content_type.to_lowercase().as_str() {
-            "log" => EvidenceType::Log,
-            "network" => EvidenceType::NetworkCapture,
-            "file" => EvidenceType::FileSystemArtifact,
-            "memory" => EvidenceType::MemoryDump,
-            "threat_intel" => EvidenceType::ThreatIntelReport,
-            "report" => EvidenceType::UserReport,
-            _ => EvidenceType::Other(e.content_type.clone()),
-        };
-
+        let ct = parse_evidence_type(&e.content_type);
         let tecs = extract_mitre_techniques(&e.content);
         ext_techniques.extend(tecs);
-
         let ents = extract_entities_from_content(&e.content);
         ext_entities.extend(ents);
-
         evidence_list.push(Evidence::new(incident_id.clone(), e.source, e.content, ct, 0.9));
     }
 
@@ -200,24 +210,59 @@ pub async fn upload(
     incident.entity_ids = entities.iter().map(|e| e.id.clone()).collect();
     incident.evidence_ids = evidence_list.iter().map(|e| e.id.clone()).collect();
 
-    let severity_str = match incident.severity {
-        Severity::Critical => "Critical",
-        Severity::High => "High",
-        Severity::Medium => "Medium",
-        Severity::Low => "Low",
-        Severity::Informational => "Informational",
-    };
+    let severity_str = format_severity(&incident.severity);
     incident.tags = vec![severity_str.to_lowercase()];
     if !incident.mitre_techniques.is_empty() {
         incident.tags.push("mitre-mapped".to_string());
     }
 
+    // Intelligence analysis
     if let Ok(mut intel) = state.intelligence.write() {
         let _ = intel.analyze(&evidence_list);
     }
 
+    // Memory store
     let _ = state.memory.store_incident(&incident);
 
+    // Persist to PgStore when available
+    if let Some(ref pg) = state.pg_store {
+        if let Err(e) = pg.save_incident(&incident).await {
+            tracing::warn!("PgStore save_incident failed: {}", e);
+        }
+        if let Err(e) = pg.save_evidence_batch(&incident_id, &evidence_list).await {
+            tracing::warn!("PgStore save_evidence failed: {}", e);
+        }
+        if let Err(e) = pg.save_entities_batch(&incident_id, &entities).await {
+            tracing::warn!("PgStore save_entities failed: {}", e);
+        }
+    }
+
+    // Qdrant upsert when available
+    if let Some(ref qdrant) = state.qdrant {
+        if let Some(ref ollama) = state.ollama_client {
+            let combined_text = format!("{} {} {}", incident.title, incident.description,
+                evidence_list.iter().map(|e| e.content.as_str()).collect::<Vec<_>>().join(" "));
+            match ollama.generate_embedding(&combined_text).await {
+                Ok(embedding) => {
+                    let payload = serde_json::json!({
+                        "incident_id": incident_id,
+                        "title": incident.title,
+                        "severity": severity_str,
+                        "mitre_techniques": incident.mitre_techniques,
+                        "evidence_count": evidence_list.len(),
+                    });
+                    if let Err(e) = qdrant.upsert_vector(&incident_id, embedding, payload).await {
+                        tracing::warn!("Qdrant upsert failed: {}", e);
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Embedding generation failed, skipping Qdrant: {}", e);
+                }
+            }
+        }
+    }
+
+    // In-memory fallback
     let evidence_count = evidence_list.len();
     let entity_count = entities.len();
 
@@ -253,6 +298,12 @@ pub async fn upload(
 pub async fn list_incidents(
     State(state): State<Arc<AppState>>,
 ) -> Result<(StatusCode, Json<ApiResponse<Vec<CanonicalIncident>>>), AppError> {
+    if let Some(ref pg) = state.pg_store {
+        match pg.list_incidents().await {
+            Ok(incidents) => return Ok(ApiResponse::ok(incidents)),
+            Err(e) => tracing::warn!("PgStore list_incidents failed, falling back: {}", e),
+        }
+    }
     match state.incidents.read() {
         Ok(incidents) => {
             let list: Vec<CanonicalIncident> = incidents.values().cloned().collect();
@@ -268,6 +319,13 @@ pub async fn get_incident(
 ) -> Result<(StatusCode, Json<ApiResponse<CanonicalIncident>>), AppError> {
     if id.is_empty() || id.len() > 128 {
         return Err(AppError::BadRequest("Invalid incident ID".into()));
+    }
+    if let Some(ref pg) = state.pg_store {
+        match pg.get_incident(&id).await {
+            Ok(Some(incident)) => return Ok(ApiResponse::ok(incident)),
+            Ok(None) => {}
+            Err(e) => tracing::warn!("PgStore get_incident failed, falling back: {}", e),
+        }
     }
     match state.incidents.read() {
         Ok(incidents) => {
@@ -287,28 +345,41 @@ pub async fn get_timeline(
     if id.is_empty() || id.len() > 128 {
         return Err(AppError::BadRequest("Invalid incident ID".into()));
     }
-    match state.evidence.read() {
-        Ok(evidence) => match evidence.get(&id) {
-            Some(ev_list) => {
-                let timeline: Vec<serde_json::Value> = ev_list
-                    .iter()
-                    .map(|e| {
-                        serde_json::json!({
-                            "id": e.id,
-                            "source": e.source,
-                            "type": format!("{:?}", e.content_type),
-                            "content": e.content,
-                            "trust_score": e.trust_score,
-                            "collected_at": e.collected_at,
-                        })
-                    })
-                    .collect();
-                Ok(ApiResponse::ok(serde_json::json!({ "incident_id": id, "events": timeline })))
+
+    let ev_list = if let Some(ref pg) = state.pg_store {
+        match pg.get_evidence(&id).await {
+            Ok(evidence) => Some(evidence),
+            Err(e) => {
+                tracing::warn!("PgStore get_evidence failed, falling back: {}", e);
+                None
             }
-            None => Err(AppError::NotFound("Incident not found".into())),
-        },
-        Err(_) => Err(AppError::LockError),
-    }
+        }
+    } else {
+        None
+    };
+
+    let ev_list = ev_list.unwrap_or_else(|| {
+        match state.evidence.read() {
+            Ok(evidence) => evidence.get(&id).cloned().unwrap_or_default(),
+            Err(_) => Vec::new(),
+        }
+    });
+
+    let timeline: Vec<serde_json::Value> = ev_list
+        .iter()
+        .map(|e| {
+            serde_json::json!({
+                "id": e.id,
+                "source": e.source,
+                "type": format!("{:?}", e.content_type),
+                "content": e.content,
+                "trust_score": e.trust_score,
+                "collected_at": e.collected_at,
+            })
+        })
+        .collect();
+
+    Ok(ApiResponse::ok(serde_json::json!({ "incident_id": id, "events": timeline })))
 }
 
 pub async fn get_memory(
@@ -342,15 +413,35 @@ pub async fn search_similar(
         return Err(AppError::BadRequest("Invalid incident ID".into()));
     }
     let top_k = req.top_k.unwrap_or(5).clamp(1, 100);
-    let query = match state.incidents.read() {
-        Ok(incidents) => match incidents.get(&req.incident_id) {
-            Some(i) => i.clone(),
-            None => return Err(AppError::NotFound("Incident not found".into())),
-        },
-        Err(_) => return Err(AppError::LockError),
+
+    let query = if let Some(ref pg) = state.pg_store {
+        match pg.get_incident(&req.incident_id).await {
+            Ok(Some(i)) => i,
+            _ => {
+                match state.incidents.read() {
+                    Ok(incidents) => match incidents.get(&req.incident_id) {
+                        Some(i) => i.clone(),
+                        None => return Err(AppError::NotFound("Incident not found".into())),
+                    },
+                    Err(_) => return Err(AppError::LockError),
+                }
+            }
+        }
+    } else {
+        match state.incidents.read() {
+            Ok(incidents) => match incidents.get(&req.incident_id) {
+                Some(i) => i.clone(),
+                None => return Err(AppError::NotFound("Incident not found".into())),
+            },
+            Err(_) => return Err(AppError::LockError),
+        }
     };
+
     let candidates = state.memory.list_all().unwrap_or_default();
-    match state.retrieval.search(&query, &candidates, top_k) {
+
+    let query_text = format!("{} {}", query.title, query.description);
+
+    match state.retrieval.search_hybrid(&query, &candidates, &query_text, top_k).await {
         Ok(results) => Ok(ApiResponse::ok(serde_json::json!({ "results": results }))),
         Err(e) => Err(AppError::Internal(e.to_string())),
     }
@@ -388,10 +479,62 @@ pub async fn search_text(
     dummy_query.tags = tags;
 
     let candidates = state.memory.list_all().unwrap_or_default();
-    match state.retrieval.search(&dummy_query, &candidates, top_k) {
+
+    match state.retrieval.search_hybrid(&dummy_query, &candidates, &req.query, top_k).await {
         Ok(results) => Ok(ApiResponse::ok(serde_json::json!({ "results": results }))),
         Err(e) => Err(AppError::Internal(e.to_string())),
     }
+}
+
+pub async fn generate_narrative(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<(StatusCode, Json<ApiResponse<serde_json::Value>>), AppError> {
+    if id.is_empty() || id.len() > 128 {
+        return Err(AppError::BadRequest("Invalid incident ID".into()));
+    }
+
+    let (summary, techniques) = if let Some(ref pg) = state.pg_store {
+        match pg.get_incident(&id).await {
+            Ok(Some(i)) => (format!("{}: {}", i.title, i.description), i.mitre_techniques.clone()),
+            _ => {
+                match state.incidents.read() {
+                    Ok(incidents) => match incidents.get(&id) {
+                        Some(i) => (format!("{}: {}", i.title, i.description), i.mitre_techniques.clone()),
+                        None => return Err(AppError::NotFound("Incident not found".into())),
+                    },
+                    Err(_) => return Err(AppError::LockError),
+                }
+            }
+        }
+    } else {
+        match state.incidents.read() {
+            Ok(incidents) => match incidents.get(&id) {
+                Some(i) => (format!("{}: {}", i.title, i.description), i.mitre_techniques.clone()),
+                None => return Err(AppError::NotFound("Incident not found".into())),
+            },
+            Err(_) => return Err(AppError::LockError),
+        }
+    };
+
+    let has_ollama = match state.intelligence.read() {
+        Ok(intel) => intel.has_ollama(),
+        Err(_) => return Err(AppError::LockError),
+    };
+    if !has_ollama {
+        return Err(AppError::BadRequest("Ollama pipeline not configured".into()));
+    }
+
+    let ollama_client = state.ollama_client.clone()
+        .ok_or_else(|| AppError::BadRequest("Ollama not configured".into()))?;
+    let narrative = ollama_client.generate_narrative(&summary, &techniques)
+        .await
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    Ok(ApiResponse::ok(serde_json::json!({
+        "incident_id": id,
+        "narrative": narrative,
+    })))
 }
 
 pub async fn get_graph(
@@ -561,19 +704,45 @@ pub async fn post_feedback(
         return Err(AppError::BadRequest("Rating must be between 0 and 5".into()));
     }
 
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs().to_string())
+        .unwrap_or_else(|_| "unknown".to_string());
+
+    // Persist to PgStore
+    if let Some(ref pg) = state.pg_store {
+        if let Err(e) = pg.save_feedback(&id, &req.feedback, req.rating).await {
+            tracing::warn!("Failed to persist feedback: {}", e);
+        }
+    }
+
+    // In-memory feedback store
     let entry = crate::state::FeedbackEntry {
         feedback: req.feedback,
         rating: req.rating,
-        created_at: std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_secs().to_string())
-            .unwrap_or_else(|_| "unknown".to_string()),
+        created_at: now,
     };
-    match state.feedback.write() {
-        Ok(mut feedback_map) => {
-            feedback_map.entry(id.clone()).or_default().push(entry);
-            Ok(ApiResponse::ok(format!("Feedback recorded for incident {}", id)))
-        }
-        Err(_) => Err(AppError::LockError),
+    if let Ok(mut feedback_map) = state.feedback.write() {
+        feedback_map.entry(id.clone()).or_default().push(entry);
     }
+
+    // Calculate average rating and update confidence signals
+    let avg_rating = if let Some(ref pg) = state.pg_store {
+        pg.get_average_rating(&id).await.unwrap_or(None).unwrap_or(req.rating as f64)
+    } else {
+        let entries = state.feedback.read()
+            .map(|m| m.get(&id).cloned().unwrap_or_default())
+            .unwrap_or_default();
+        if entries.is_empty() {
+            req.rating as f64
+        } else {
+            entries.iter().map(|e| e.rating as f64).sum::<f64>() / entries.len() as f64
+        }
+    };
+
+    // Update retrieval feedback signal
+    state.retrieval.set_feedback_signal(&id, avg_rating);
+
+    tracing::info!(incident_id = %id, rating = req.rating, avg_rating, "Feedback recorded");
+    Ok(ApiResponse::ok(format!("Feedback recorded for incident {} (avg rating: {:.1}/5.0)", id, avg_rating)))
 }

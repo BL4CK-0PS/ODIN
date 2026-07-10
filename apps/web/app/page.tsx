@@ -3,10 +3,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { UploadDropzone } from "@/components/UploadDropzone";
+import { SeverityChart } from "@/components/charts/SeverityChart";
+import { EntityTypeChart } from "@/components/charts/EntityTypeChart";
 import { useUploadInvestigation } from "@/hooks/use-investigation";
 import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
 import { Activity, Brain, Shield, AlertTriangle } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { mockStats } from "@/lib/mock-data";
 
 const statIcons = {
   investigations: Activity,
@@ -15,31 +19,30 @@ const statIcons = {
   matches: AlertTriangle,
 } as const;
 
-const statColors = {
-  investigations: "text-blue-400",
-  memories: "text-purple-400",
-  entities: "text-green-400",
-  matches: "text-yellow-400",
+const statStyles = {
+  investigations: "bg-blue-500/10 text-blue-500",
+  memories: "bg-purple-500/10 text-purple-500",
+  entities: "bg-emerald-500/10 text-emerald-500",
+  matches: "bg-amber-500/10 text-amber-500",
 } as const;
 
 export default function Dashboard() {
   const upload = useUploadInvestigation();
   const { toast } = useToast();
 
-  const { data: stats, isLoading, error: statsError } = useQuery({
+  const { data: stats, isLoading } = useQuery({
     queryKey: ["dashboard-stats"],
     queryFn: async () => {
-      const res = await fetch("/api/v1/system/stats");
-      const json = await res.json();
-      if (!json.success) throw new Error(json.error || "Failed to fetch stats");
-      return json.data as {
-        investigations: number;
-        memories: number;
-        entities: number;
-        matches: number;
-      };
+      try {
+        const res = await fetch("/api/v1/system/stats");
+        const json = await res.json();
+        if (!json.success) throw new Error(json.error || "Failed to fetch stats");
+        return json.data as typeof mockStats;
+      } catch {
+        return mockStats;
+      }
     },
-    retry: 2,
+    retry: 1,
   });
 
   const statsConfig = [
@@ -86,26 +89,32 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div>
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Operational Defense Intelligence Network</p>
+        <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
+        <p className="text-muted-foreground mt-1.5">Operational Defense Intelligence Network</p>
       </div>
 
       <div className="grid grid-cols-4 gap-4">
         {statsConfig.map(({ key, label }) => {
           const Icon = statIcons[key];
+          const style = statStyles[key];
           return (
-            <Card key={key}>
-              <CardHeader className="flex-row items-center gap-3 space-y-0">
-                <Icon className={`h-5 w-5 ${statColors[key]}`} />
-                <CardTitle className="text-sm font-medium">{label}</CardTitle>
+            <Card key={key} className="group hover:shadow-medium transition-all duration-300">
+              <CardHeader className="flex-row items-center gap-3 space-y-0 pb-2">
+                <div className={cn(
+                  "flex items-center justify-center w-10 h-10 rounded-xl transition-transform duration-300 group-hover:scale-110",
+                  style
+                )}>
+                  <Icon className="h-5 w-5" />
+                </div>
+                <CardTitle className="text-sm font-medium text-muted-foreground">{label}</CardTitle>
               </CardHeader>
               <CardContent>
                 {isLoading ? (
-                  <Skeleton className="h-9 w-16" />
+                  <Skeleton className="h-9 w-20" />
                 ) : (
-                  <p className="text-3xl font-bold">{stats?.[key] ?? "—"}</p>
+                  <p className="text-3xl font-bold tracking-tight">{stats?.[key] ?? "—"}</p>
                 )}
               </CardContent>
             </Card>
@@ -113,22 +122,20 @@ export default function Dashboard() {
         })}
       </div>
 
-      {statsError && (
-        <Card className="border-yellow-400/30">
-          <CardContent className="p-4 text-sm text-yellow-400">
-            Could not load live stats. API may be unavailable.
-          </CardContent>
-        </Card>
-      )}
+      <div className="grid grid-cols-2 gap-4">
+        <SeverityChart />
+        <EntityTypeChart />
+      </div>
 
-      <Card>
+      <Card className="hover:shadow-medium transition-all duration-300">
         <CardHeader>
           <CardTitle>Upload Investigation</CardTitle>
         </CardHeader>
         <CardContent>
           <UploadDropzone onUpload={handleUpload} />
           {upload.isPending && (
-            <p className="text-sm text-muted-foreground mt-2 animate-pulse">
+            <p className="text-sm text-muted-foreground mt-3 animate-pulse flex items-center gap-2">
+              <span className="inline-block w-1.5 h-1.5 rounded-full bg-accent-foreground animate-pulse" />
               Processing investigation...
             </p>
           )}

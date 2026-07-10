@@ -3,6 +3,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { ConfidenceHistogram } from "@/components/charts/ConfidenceHistogram";
 import { useThreatMemories } from "@/hooks/use-threat-memory";
 import { Brain, Clock, AlertCircle } from "lucide-react";
 
@@ -12,12 +13,16 @@ export default function ThreatMemoryPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <Brain className="h-8 w-8 text-primary" />
+        <Brain className="h-8 w-8 text-accent-foreground" />
         <div>
           <h1 className="text-3xl font-bold">Threat Memory</h1>
           <p className="text-muted-foreground mt-1">Institutional cybersecurity knowledge that compounds over time</p>
         </div>
       </div>
+
+      {memories && memories.length > 0 && (
+        <ConfidenceHistogram memories={memories} />
+      )}
 
       <div className="grid gap-4">
         {isLoading ? (
@@ -50,10 +55,10 @@ export default function ThreatMemoryPage() {
           </Card>
         ) : (
           memories?.map((m) => (
-            <Card key={m.id}>
+            <Card key={m.id} className="hover:shadow-medium transition-all duration-300 group">
               <CardHeader className="flex-row items-start justify-between space-y-0">
                 <div className="space-y-1">
-                  <CardTitle className="text-base">{m.summary}</CardTitle>
+                  <CardTitle className="text-base group-hover:text-accent-foreground transition-colors">{m.summary}</CardTitle>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Clock className="h-3 w-3" />
                     <span>{m.created_at ? new Date(m.created_at).toLocaleDateString() : ""}</span>

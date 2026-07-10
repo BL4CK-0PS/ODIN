@@ -10,6 +10,8 @@ pub trait MemoryStore: Send + Sync {
     fn list_all(&self) -> Result<Vec<MemoryObject>, KernelError>;
     fn save_version(&self, version: MemoryVersion) -> Result<(), KernelError>;
     fn get_versions(&self, memory_id: &str) -> Result<Vec<MemoryVersion>, KernelError>;
+    fn purge_expired(&self) -> Result<Vec<String>, KernelError>;
+    fn prune_versions(&self, memory_id: &str, max_versions: usize) -> Result<usize, KernelError>;
 }
 
 pub struct InMemoryStore {
@@ -63,6 +65,38 @@ impl MemoryStore for InMemoryStore {
 
     fn get_versions(&self, memory_id: &str) -> Result<Vec<MemoryVersion>, KernelError> {
         Ok(self.versions.read().map_err(|e| KernelError::Internal(e.to_string()))?.get(memory_id).cloned().unwrap_or_default())
+    }
+
+    fn purge_expired(&self) -> Result<Vec<String>, KernelError> {
+        let mut objects = self.objects.write().map_err(|e| KernelError::Internal(e.to_string()))?;
+        let mut by_incident = self.by_incident.write().map_err(|e| KernelError::Internal(e.to_string()))?;
+        let now = chrono::Utc::now();
+        let mut purged = Vec::new();
+        objects.retain(|id, obj| {
+            if let Some(expires) = obj.expires_at {
+                if expires <= now {
+                    by_incident.remove(&obj.incident_id);
+                    purged.push(id.clone());
+                    return false;
+                }
+            }
+            true
+        });
+        Ok(purged)
+    }
+
+    fn prune_versions(&self, memory_id: &str, max_versions: usize) -> Result<usize, KernelError> {
+        let mut versions = self.versions.write().map_err(|e| KernelError::Internal(e.to_string()))?;
+        if let Some(v) = versions.get_mut(memory_id) {
+            if v.len() <= max_versions {
+                return Ok(0);
+            }
+            let removed = v.len() - max_versions;
+            v.drain(..removed);
+            Ok(removed)
+        } else {
+            Ok(0)
+        }
     }
 }
 

@@ -15,8 +15,7 @@ interface SimilarityCardProps {
 export function SimilarityCard({ title, score, reasons, onClick }: SimilarityCardProps) {
   const isHigh = score >= 0.7;
   const scoreColor = isHigh ? "stroke-green-400 text-green-400" : score >= 0.4 ? "stroke-yellow-400 text-yellow-400" : "stroke-red-400 text-red-400";
-  
-  // Circle geometry for the gauge ring
+
   const radius = 18;
   const circumference = 2 * Math.PI * radius;
   const strokeDashoffset = circumference - score * circumference;
@@ -24,30 +23,29 @@ export function SimilarityCard({ title, score, reasons, onClick }: SimilarityCar
   return (
     <Card
       className={cn(
-        "glass border border-border/40 hover:border-primary/40 hover:bg-card/70 transition-all duration-300 group shadow-md",
+        "glass border border-border/40 hover:border-accent-foreground/20 hover:shadow-warm transition-all duration-300 group",
         onClick && "cursor-pointer active:scale-[0.99]"
       )}
       onClick={onClick}
     >
       <CardHeader className="flex-row items-center justify-between pb-3 space-y-0">
         <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/5 border border-primary/10 group-hover:bg-primary/10 transition-colors duration-300">
-            <Search className="h-4 w-4 text-primary" />
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-accent/30 group-hover:bg-accent/50 transition-colors duration-300">
+            <Search className="h-4 w-4 text-accent-foreground" />
           </div>
           <div className="space-y-0.5">
-            <CardTitle className="text-sm font-semibold tracking-tight text-foreground group-hover:text-primary transition-colors duration-300">
+            <CardTitle className="text-sm font-semibold tracking-tight text-foreground">
               {title}
             </CardTitle>
             {isHigh && (
               <span className="inline-flex items-center gap-1 text-[10px] text-red-400/90 font-medium font-mono">
-                <Flame className="h-3 w-3 animate-bounce" />
+                <Flame className="h-3 w-3" />
                 Critical Similarity
               </span>
             )}
           </div>
         </div>
 
-        {/* Circular Progress Gauge */}
         <div className="relative flex items-center justify-center w-12 h-12">
           <svg className="w-12 h-12 -rotate-90">
             <circle
@@ -72,14 +70,14 @@ export function SimilarityCard({ title, score, reasons, onClick }: SimilarityCar
           </span>
         </div>
       </CardHeader>
-      
+
       <CardContent>
         <div className="flex flex-wrap gap-1.5 pt-1">
           {reasons.map((r, i) => (
             <Badge
               key={i}
               variant="outline"
-              className="text-[10px] font-mono py-0.5 px-2 bg-secondary/20 border-border/60 hover:bg-secondary/40 text-muted-foreground group-hover:text-foreground transition-colors duration-300"
+              className="text-[10px] font-mono py-0.5 px-2 bg-secondary/20 border-border/60 hover:bg-accent/30 hover:border-accent-foreground/20 hover:text-accent-foreground transition-all duration-300"
             >
               {r}
             </Badge>

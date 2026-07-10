@@ -11,16 +11,15 @@ interface NarrativeCardProps {
 }
 
 export function NarrativeCard({ summary, confidence, techniques }: NarrativeCardProps) {
-  // Highlight IOCs and MITRE techniques in the summary text dynamically
   const highlightSummary = (text: string) => {
     if (!text) return "";
     const regex = /(\bT\d{4}\b|\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b|\b[a-zA-Z0-9.-]+\.(?:com|net|org|xyz|local)\b|\b[a-zA-Z0-9.-]+\.(?:exe|dll|ps1|bat)\b)/gi;
     const parts = text.split(regex);
-    
+
     return parts.map((part, i) => {
       if (part.match(regex)) {
         return (
-          <span key={i} className="font-mono text-xs font-semibold px-1.5 py-0.5 mx-0.5 rounded bg-primary/10 border border-primary/25 text-primary-foreground text-blue-400">
+          <span key={i} className="font-mono text-xs font-semibold px-1.5 py-0.5 mx-0.5 rounded bg-accent/40 border border-accent-foreground/20 text-accent-foreground">
             {part}
           </span>
         );
@@ -36,7 +35,9 @@ export function NarrativeCard({ summary, confidence, techniques }: NarrativeCard
       <CardHeader className="pb-3 border-b border-border/40">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-primary" />
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-accent/30">
+              <FileText className="h-4 w-4 text-accent-foreground" />
+            </div>
             <CardTitle className="text-lg font-semibold tracking-tight">Attack Narrative</CardTitle>
           </div>
           {isHighConfidence && (
@@ -47,9 +48,8 @@ export function NarrativeCard({ summary, confidence, techniques }: NarrativeCard
           )}
         </div>
       </CardHeader>
-      
+
       <CardContent className="flex-1 flex flex-col justify-between pt-4 gap-4">
-        {/* Dynamic Summary with highlighted parts */}
         <p className="text-sm leading-relaxed text-muted-foreground break-words">
           {highlightSummary(summary)}
         </p>
@@ -61,10 +61,9 @@ export function NarrativeCard({ summary, confidence, techniques }: NarrativeCard
               {(confidence * 100).toFixed(0)}%
             </span>
           </div>
-          {/* Progress bar */}
-          <div className="w-full h-1 bg-border/40 rounded-full overflow-hidden">
+          <div className="w-full h-1.5 bg-border/40 rounded-full overflow-hidden">
             <div
-              className={`h-full transition-all duration-1000 ${isHighConfidence ? "bg-green-400" : "bg-yellow-400"}`}
+              className={`h-full rounded-full transition-all duration-1000 ${isHighConfidence ? "bg-green-400" : "bg-yellow-400"}`}
               style={{ width: `${confidence * 100}%` }}
             />
           </div>
@@ -74,7 +73,7 @@ export function NarrativeCard({ summary, confidence, techniques }: NarrativeCard
               <Badge
                 key={t}
                 variant="secondary"
-                className="text-[10px] font-mono py-0.5 px-2 bg-secondary border-border/60 hover:bg-secondary/80 text-foreground transition-all duration-200"
+                className="text-[10px] font-mono py-0.5 px-2 bg-secondary border-border/60 hover:bg-accent/30 hover:text-accent-foreground transition-all duration-200"
               >
                 {t}
               </Badge>

@@ -1,0 +1,158 @@
+services:
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./deploy/nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      odin-api:
+        condition: service_healthy
+      odin-web:
+        condition: service_started
+    networks:
+      - frontend_network
+    restart: unless-stopped
+
+  odin-api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    expose:
+      - "3001"
+    environment:
+      - ODIN_PORT=3001
+      - ODIN_CORS_ORIGINS=*
+      - RUST_LOG=odin_api=info,tower_http=info
+      - DATABASE_URL=postgresql://odin:odin@postgres:5432/odin
+      - QDRANT_URL=http://qdrant:6333
+      - OLLAMA_URL=http://ollama:11434
+      - OLLAMA_EMBED_MODEL=nomic-embed-text
+      - OLLAMA_REASON_MODEL=qwen3:8b
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      ollama:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3001/api/v1/system/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - frontend_network
+      - backend_network
+
+  odin-web:
+    build:
+      context: apps/web
+      dockerfile: Dockerfile
+      args:
+        API_URL: http://odin-api:3001
+    expose:
+      - "3000"
+    environment:
+      - API_URL=http://odin-api:3001
+    restart: unless-stopped
+    depends_on:
+      odin-api:
+        condition: service_healthy
+    networks:
+      - frontend_network
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: odin
+      POSTGRES_USER: odin
+      POSTGRES_PASSWORD: odin
+    expose:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odin -d odin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - backend_network
+
+  qdrant:
+    image: qdrant/qdrant:v1.12
+    expose:
+      - "6333"
+      - "6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:6333/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - backend_network
+
+  redis:
+    image: redis:7-alpine
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - backend_network
+
+  ollama:
+    image: ollama/ollama:latest
+    expose:
+      - "11434"
+    volumes:
+      - ollama_data:/root/.ollama
+      - ./deploy/ollama/entrypoint.sh:/entrypoint.sh:ro
+    environment:
+      - OLLAMA_KEEP_ALIVE=24h
+      - OLLAMA_EMBED_MODEL=nomic-embed-text
+      - OLLAMA_REASON_MODEL=qwen3:8b
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    healthcheck:
+      test: ["CMD-SHELL", "ollama list 2>/dev/null | grep -q nomic-embed-text"]
+      interval: 30s
+      timeout: 30s
+      retries: 10
+      start_period: 120s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+    networks:
+      - backend_network
+
+volumes:
+  postgres_data:
+  qdrant_data:
+  redis_data:
+  ollama_data:
+
+networks:
+  frontend_network:
+    driver: bridge
+  backend_network:
+    driver: bridge

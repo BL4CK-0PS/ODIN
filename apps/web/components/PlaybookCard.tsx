@@ -28,22 +28,23 @@ export function PlaybookCard({ name, steps }: PlaybookCardProps) {
       <CardHeader className="pb-3 border-b border-border/40">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <BookOpen className="h-5 w-5 text-primary" />
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-accent/30">
+              <BookOpen className="h-4 w-4 text-accent-foreground" />
+            </div>
             <CardTitle className="text-lg font-semibold tracking-tight">{name}</CardTitle>
           </div>
-          <span className="text-xs font-mono font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+          <span className="text-xs font-mono font-bold text-accent-foreground bg-accent/40 px-2 py-0.5 rounded-full">
             {completedCount}/{totalSteps}
           </span>
         </div>
-        {/* Dynamic Progress Bar */}
-        <div className="w-full h-1 bg-border/40 rounded-full mt-3 overflow-hidden">
+        <div className="w-full h-1.5 bg-border/40 rounded-full mt-3 overflow-hidden">
           <div
-            className="h-full bg-primary transition-all duration-500 ease-out"
+            className="h-full rounded-full bg-accent-foreground transition-all duration-500 ease-out"
             style={{ width: `${progressPercent}%` }}
           />
         </div>
       </CardHeader>
-      
+
       <CardContent className="flex-1 pt-4">
         <ul className="space-y-3">
           {steps.map((step, i) => {
@@ -53,13 +54,13 @@ export function PlaybookCard({ name, steps }: PlaybookCardProps) {
               <li
                 key={i}
                 onClick={() => toggleStep(i)}
-                className="flex items-start gap-3 p-2.5 rounded-lg border border-transparent cursor-pointer select-none transition-all duration-200 hover:bg-secondary/40 hover:border-border/30"
+                className="flex items-start gap-3 p-2.5 rounded-lg border border-transparent cursor-pointer select-none transition-all duration-200 hover:bg-accent/20 hover:border-accent-foreground/15"
               >
                 <div className="mt-0.5 shrink-0 transition-transform duration-200 active:scale-90">
                   {isCompleted ? (
                     <CheckCircle2 className="h-4.5 w-4.5 text-green-400 fill-green-500/10" />
                   ) : (
-                    <Circle className="h-4.5 w-4.5 text-muted-foreground/60 hover:text-primary" />
+                    <Circle className="h-4.5 w-4.5 text-muted-foreground/60 hover:text-accent-foreground" />
                   )}
                 </div>
                 <span

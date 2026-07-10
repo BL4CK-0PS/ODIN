@@ -12,6 +12,7 @@ import { KnowledgeGraph } from "@/components/KnowledgeGraph";
 import { SimilarityCard } from "@/components/SimilarityCard";
 import { SimilarityReason } from "@/components/SimilarityReason";
 import { PlaybookCard } from "@/components/PlaybookCard";
+import { TrustScoreChart } from "@/components/charts/TrustScoreChart";
 import { useInvestigation } from "@/hooks/use-investigation";
 import { useSearchSimilar } from "@/hooks/use-search";
 import { useToast } from "@/hooks/use-toast";
@@ -123,6 +124,7 @@ export default function InvestigationPage() {
           <Skeleton className="h-48" />
           <Skeleton className="h-48" />
         </div>
+        <Skeleton className="h-64" />
       </div>
     );
   }
@@ -173,11 +175,9 @@ export default function InvestigationPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">{incTitle}</h1>
-          <p className="text-muted-foreground mt-1">{incDesc}</p>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold">{incTitle}</h1>
+        <p className="text-muted-foreground mt-1">{incDesc}</p>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
@@ -195,6 +195,8 @@ export default function InvestigationPage() {
           <FeedbackSection incidentId={id} />
         </div>
       </div>
+
+      <TrustScoreChart evidence={evidenceList} />
 
       <Tabs defaultValue="timeline">
         <TabsList>

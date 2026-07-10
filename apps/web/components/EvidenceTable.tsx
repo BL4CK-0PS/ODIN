@@ -34,7 +34,9 @@ export function EvidenceTable({ evidence }: EvidenceTableProps) {
       <Card className="glass relative overflow-hidden flex flex-col h-full">
         <CardHeader className="pb-3 border-b border-border/40">
           <div className="flex items-center gap-2">
-            <Scale className="h-5 w-5 text-primary" />
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-accent/30">
+              <Scale className="h-4 w-4 text-accent-foreground" />
+            </div>
             <CardTitle className="text-lg font-semibold tracking-tight">Evidence Artifacts</CardTitle>
           </div>
         </CardHeader>
@@ -45,10 +47,10 @@ export function EvidenceTable({ evidence }: EvidenceTableProps) {
                 <div
                   key={e.id}
                   onClick={() => setSelectedItem(e)}
-                  className="flex items-center justify-between p-3 rounded-lg border border-border/20 bg-secondary/25 hover:bg-secondary/50 hover:border-primary/20 transition-all duration-200 cursor-pointer group"
+                  className="flex items-center justify-between p-3 rounded-lg border border-border/20 bg-secondary/25 hover:bg-accent/20 hover:border-accent-foreground/15 transition-all duration-200 cursor-pointer group"
                 >
                   <div className="space-y-0.5">
-                    <p className="text-sm font-semibold text-foreground group-hover:text-primary transition-colors duration-200">
+                    <p className="text-sm font-semibold text-foreground group-hover:text-accent-foreground transition-colors duration-200">
                       {e.source}
                     </p>
                     <p className="text-xs text-muted-foreground">{e.content_type}</p>
@@ -57,7 +59,7 @@ export function EvidenceTable({ evidence }: EvidenceTableProps) {
                     <span className={cn("font-mono text-xs px-2 py-0.5 border rounded-full font-bold", trustColor(e.trust_score).split(" ")[0], trustColor(e.trust_score).split(" ")[1])}>
                       {(e.trust_score * 100).toFixed(0)}%
                     </span>
-                    <Eye className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors opacity-0 group-hover:opacity-100" />
+                    <Eye className="h-4 w-4 text-muted-foreground group-hover:text-accent-foreground transition-colors opacity-0 group-hover:opacity-100" />
                   </div>
                 </div>
               ))}
@@ -71,13 +73,12 @@ export function EvidenceTable({ evidence }: EvidenceTableProps) {
         </CardContent>
       </Card>
 
-      {/* Log Inspector Dialog */}
       <Dialog open={!!selectedItem} onClose={() => setSelectedItem(null)}>
         {selectedItem && (
           <DialogContent className="glass-strong border border-border/60 max-w-xl shadow-2xl">
             <DialogHeader className="flex-row items-center justify-between pb-3 border-b border-border/40 space-y-0">
               <div className="flex items-center gap-2">
-                <FileCode className="h-5 w-5 text-primary animate-pulse" />
+                <FileCode className="h-5 w-5 text-accent-foreground" />
                 <DialogTitle className="text-base font-semibold text-foreground">
                   Evidence Inspector
                 </DialogTitle>
@@ -127,7 +128,7 @@ export function EvidenceTable({ evidence }: EvidenceTableProps) {
               <div className="flex justify-end pt-2 border-t border-border/40">
                 <button
                   onClick={() => setSelectedItem(null)}
-                  className="px-4 py-1.5 rounded-lg bg-secondary hover:bg-secondary/80 text-sm font-medium transition-colors"
+                  className="px-4 py-1.5 rounded-lg bg-secondary hover:bg-accent/40 hover:text-accent-foreground text-sm font-medium transition-colors"
                 >
                   Close
                 </button>

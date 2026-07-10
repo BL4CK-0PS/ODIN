@@ -21,7 +21,7 @@ export function DiffCard({ title, current, previous, type }: DiffCardProps) {
     <Card className={colors[type]}>
       <CardHeader>
         <div className="flex items-center gap-2">
-          <GitCompare className="h-4 w-4 text-primary" />
+          <GitCompare className="h-4 w-4 text-accent-foreground" />
           <CardTitle className="text-sm">{title}</CardTitle>
         </div>
       </CardHeader>

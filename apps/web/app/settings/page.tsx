@@ -70,7 +70,9 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div className="flex items-center gap-3">
-        <Settings className="h-8 w-8 text-primary" />
+        <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-accent/30">
+          <Settings className="h-5 w-5 text-accent-foreground" />
+        </div>
         <div>
           <h1 className="text-3xl font-bold">Settings</h1>
           <p className="text-muted-foreground mt-1">Configure ODIN connections and preferences</p>
@@ -80,7 +82,9 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-primary" />
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-accent/30">
+              <Shield className="h-4 w-4 text-accent-foreground" />
+            </div>
             <CardTitle>API Connection</CardTitle>
           </div>
         </CardHeader>
@@ -96,10 +100,10 @@ export default function SettingsPage() {
                   value={localUrl}
                   onChange={(e) => handleUrlChange(e.target.value)}
                   placeholder="http://localhost:3001/api/v1"
-                  className={urlError ? "border-red-400" : ""}
+                  className={urlError ? "border-destructive" : ""}
                 />
                 {urlError && (
-                  <p className="text-xs text-red-400">{urlError}</p>
+                  <p className="text-xs text-destructive">{urlError}</p>
                 )}
               </div>
               <Button variant="secondary" onClick={handleSave}>
@@ -123,11 +127,13 @@ export default function SettingsPage() {
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
-            {theme === "dark" ? (
-              <Moon className="h-5 w-5 text-primary" />
-            ) : (
-              <Sun className="h-5 w-5 text-primary" />
-            )}
+            <div className="flex items-center justify-center w-8 h-8 rounded-lg bg-accent/30">
+              {theme === "dark" ? (
+                <Moon className="h-4 w-4 text-accent-foreground" />
+              ) : (
+                <Sun className="h-4 w-4 text-accent-foreground" />
+              )}
+            </div>
             <CardTitle>Appearance</CardTitle>
           </div>
         </CardHeader>

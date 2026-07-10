@@ -7,6 +7,7 @@ pub struct ReasoningResult {
     pub confidence: Confidence,
     pub supporting_evidence_ids: Vec<String>,
     pub matched_rules: Vec<String>,
+    pub reasoning_steps: Vec<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -76,6 +77,7 @@ impl ReasoningEngine {
                     confidence: Confidence::new(sources),
                     supporting_evidence_ids: evidence_trust_scores.iter().map(|(id, _)| id.clone()).collect(),
                     matched_rules: vec![rule.name.clone()],
+                    reasoning_steps: Vec::new(),
                 }
             })
             .collect()

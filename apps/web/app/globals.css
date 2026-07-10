@@ -4,9 +4,8 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
-
 :root {
-  /* Brand colors */
+  /* Brand accent - orange */
   --brand-50: 12 76% 96%;
   --brand-100: 12 76% 90%;
   --brand-200: 12 76% 78%;
@@ -20,37 +19,27 @@
   --brand-900: 12 76% 18%;
 
   /* Core UI properties - Light Mode */
-  --background: 38 40% 98%;
-  /* #FDFAF6 warm base */
+  --background: 0 0% 98%;
   --foreground: 0 0% 4%;
-  /* #0a0a0a */
   --card: 0 0% 100%;
-  /* White */
   --card-foreground: 0 0% 4%;
   --popover: 0 0% 100%;
   --popover-foreground: 0 0% 4%;
-  --primary: var(--brand-500);
-  /* Brand Orange */
-  --primary-foreground: 210 40% 98%;
-  --secondary: 38 20% 95%;
-  /* #F7F3EE alt base */
-  --secondary-foreground: 0 0% 15%;
-  --muted: 38 20% 95%;
-  --muted-foreground: 220 9% 46%;
-  /* #6B7280 */
-  --accent: 38 20% 95%;
+  --primary: 0 0% 0%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 94%;
+  --secondary-foreground: 0 0% 9%;
+  --muted: 0 0% 94%;
+  --muted-foreground: 0 0% 45%;
+  --accent: 12 76% 95%;
   --accent-foreground: var(--brand-500);
-  --destructive: 354 84% 47%;
-  /* #cf222e */
-  --destructive-foreground: 210 40% 98%;
-  --border: 220 13% 91%;
-  /* #e5e7eb */
-  --input: 220 13% 91%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 88%;
+  --input: 0 0% 88%;
   --ring: var(--brand-500);
   --radius: 0.75rem;
-  /* 12px default */
   --radius-lg: 0.875rem;
-  /* 14px */
 
   /* ODIN Custom Node Overlay colors */
   --odin-glow: var(--brand-500);
@@ -61,46 +50,41 @@
   --odin-rose: 350 89% 60%;
 
   /* Shadows */
-  --shadow-soft: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
-  --shadow-warm: 0 4px 14px -2px rgba(229, 106, 74, 0.15);
-  --shadow-elevated: 0 12px 28px -4px rgba(60, 50, 45, 0.06);
+  --shadow-soft: 0 1px 3px 0 rgba(0, 0, 0, 0.04);
+  --shadow-medium: 0 4px 14px -2px rgba(0, 0, 0, 0.08);
+  --shadow-elevated: 0 12px 28px -4px rgba(0, 0, 0, 0.06);
+  --shadow-warm: 0 4px 14px -2px rgba(229, 106, 74, 0.12);
 
   color-scheme: light;
 }
 
 .dark {
   /* Core UI properties - Dark Mode */
-  --background: 0 0% 10%;
-  /* #1a1a1a neutral warm dark */
+  --background: 0 0% 4%;
   --foreground: 0 0% 93%;
-  /* #ededed */
-  --card: 0 0% 15%;
-  /* #262626 surface */
+  --card: 0 0% 8%;
   --card-foreground: 0 0% 93%;
-  --popover: 0 0% 15%;
+  --popover: 0 0% 8%;
   --popover-foreground: 0 0% 93%;
-  --primary: var(--brand-500);
-  --primary-foreground: 210 40% 98%;
-  --secondary: 60 1% 12%;
-  /* #1F1F1E surface alt */
+  --primary: 0 0% 100%;
+  --primary-foreground: 0 0% 0%;
+  --secondary: 0 0% 12%;
   --secondary-foreground: 0 0% 93%;
-  --muted: 60 1% 12%;
-  --muted-foreground: 220 9% 65%;
-  /* #9ca3af */
-  --accent: 60 1% 12%;
-  --accent-foreground: var(--brand-300);
+  --muted: 0 0% 12%;
+  --muted-foreground: 0 0% 55%;
+  --accent: 12 20% 15%;
+  --accent-foreground: var(--brand-400);
   --destructive: 0 84% 60%;
-  /* #ef4444 */
-  --destructive-foreground: 210 40% 98%;
-  --border: 0 0% 20%;
-  /* #333333 */
-  --input: 0 0% 20%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 0 0% 18%;
+  --input: 0 0% 18%;
   --ring: var(--brand-500);
 
   /* Shadows */
-  --shadow-soft: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  --shadow-warm: 0 4px 14px -2px rgba(229, 106, 74, 0.25);
-  --shadow-elevated: 0 12px 28px -4px rgba(0, 0, 0, 0.45);
+  --shadow-soft: 0 1px 3px 0 rgba(0, 0, 0, 0.3);
+  --shadow-medium: 0 4px 14px -2px rgba(0, 0, 0, 0.4);
+  --shadow-elevated: 0 12px 28px -4px rgba(0, 0, 0, 0.6);
+  --shadow-warm: 0 4px 14px -2px rgba(229, 106, 74, 0.2);
 
   color-scheme: dark;
 }
@@ -110,24 +94,26 @@
     @apply border-border;
   }
 
+  html {
+    @apply antialiased;
+  }
+
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply bg-background text-foreground font-sans;
     background-color: hsl(var(--background));
     color: hsl(var(--foreground));
   }
 
-  /* Selection Style */
   ::selection {
-    background-color: rgba(229, 106, 74, 0.25);
+    background-color: rgba(229, 106, 74, 0.2);
     color: hsl(var(--primary));
   }
 
   .dark ::selection {
-    background-color: rgba(229, 106, 74, 0.3);
+    background-color: rgba(229, 106, 74, 0.25);
     color: hsl(var(--brand-300));
   }
 
-  /* Custom Scrollbar styling */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -138,13 +124,12 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background-color: rgba(156, 163, 175, 0.2);
+    background-color: hsl(var(--muted-foreground) / 0.15);
     border-radius: 20px;
-    border: 1px solid transparent;
   }
 
   ::-webkit-scrollbar-thumb:hover {
-    background-color: hsl(var(--primary) / 0.7);
+    background-color: hsl(var(--primary) / 0.3);
   }
 }
 
@@ -156,29 +141,26 @@
 
 @layer components {
 
-  /* Warm dot grid background helper */
   .dot-grid-bg {
     background-color: hsl(var(--background));
     background-image:
-      radial-gradient(circle at 15% 20%, rgba(229, 106, 74, 0.08) 0%, transparent 45%),
-      radial-gradient(circle at 85% 80%, rgba(229, 106, 74, 0.05) 0%, transparent 45%);
+      radial-gradient(circle at 15% 20%, rgba(229, 106, 74, 0.06) 0%, transparent 50%),
+      radial-gradient(circle at 85% 80%, rgba(229, 106, 74, 0.04) 0%, transparent 50%);
   }
 
   .dark .dot-grid-bg {
     background-image:
-      radial-gradient(circle at 15% 20%, rgba(229, 106, 74, 0.12) 0%, transparent 45%),
-      radial-gradient(circle at 85% 80%, rgba(229, 106, 74, 0.07) 0%, transparent 45%);
+      radial-gradient(circle at 15% 20%, rgba(229, 106, 74, 0.1) 0%, transparent 50%),
+      radial-gradient(circle at 85% 80%, rgba(229, 106, 74, 0.06) 0%, transparent 50%);
   }
 
-  /* Thin grid overlay */
   .landing-grid {
     background-image:
-      linear-gradient(to right, hsl(var(--primary) / 0.08) 1px, transparent 1px),
-      linear-gradient(to bottom, hsl(var(--primary) / 0.08) 1px, transparent 1px);
+      linear-gradient(to right, hsl(var(--primary) / 0.06) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--primary) / 0.06) 1px, transparent 1px);
     background-size: 40px 40px;
   }
 
-  /* Card layouts styles */
   .card-soft {
     background-color: hsl(var(--card));
     box-shadow: var(--shadow-soft);
@@ -187,12 +169,11 @@
 
   .card-elev {
     background-color: hsl(var(--card));
-    box-shadow: var(--shadow-warm);
+    box-shadow: var(--shadow-medium);
     border-radius: var(--radius-lg);
     border: 1px solid hsl(var(--border) / 0.4);
   }
 
-  /* Glassmorphism options with warm tint */
   .glass {
     background: hsl(var(--card) / 0.65);
     backdrop-filter: blur(16px);
@@ -206,23 +187,21 @@
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
     border: 1px solid hsl(var(--border) / 0.6);
-    box-shadow: var(--shadow-warm);
+    box-shadow: var(--shadow-medium);
   }
 
-  /* Glow accents */
-  .glow-blue {
-    box-shadow: 0 0 20px rgba(229, 106, 74, 0.12),
-      0 0 60px rgba(229, 106, 74, 0.05);
+  .glow-accent {
+    box-shadow: 0 0 20px rgba(229, 106, 74, 0.1),
+      0 0 60px rgba(229, 106, 74, 0.04);
   }
 
-  /* Shimmer CTA Button Effect */
   .btn-cta {
     position: relative;
     overflow: hidden;
     isolation: isolate;
     background-color: hsl(var(--primary));
     color: hsl(var(--primary-foreground));
-    box-shadow: var(--shadow-warm);
+    box-shadow: var(--shadow-medium);
     border-radius: var(--radius);
     transition: all 0.3s ease;
   }
@@ -234,7 +213,7 @@
     left: 0;
     width: 50%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    background: linear-gradient(90deg, transparent, hsl(var(--primary-foreground) / 0.15), transparent);
     transform: translateX(-120%) skewX(-20deg);
     animation: cta-shimmer 3s ease-in-out infinite;
     pointer-events: none;
@@ -245,32 +224,26 @@
     0% {
       transform: translateX(-120%) skewX(-20deg);
     }
-
     100% {
       transform: translateX(220%) skewX(-20deg);
     }
   }
 
-  /* Animated border glow */
   .animate-border-glow {
     animation: border-glow 2.5s ease-in-out infinite;
   }
 
   @keyframes border-glow {
-
-    0%,
-    100% {
-      box-shadow: 0 0 5px rgba(229, 106, 74, 0.25);
-      border-color: rgba(229, 106, 74, 0.4);
+    0%, 100% {
+      box-shadow: 0 0 5px rgba(229, 106, 74, 0.2);
+      border-color: rgba(229, 106, 74, 0.3);
     }
-
     50% {
-      box-shadow: 0 0 15px rgba(229, 106, 74, 0.4);
-      border-color: rgba(229, 106, 74, 0.7);
+      box-shadow: 0 0 15px rgba(229, 106, 74, 0.35);
+      border-color: rgba(229, 106, 74, 0.5);
     }
   }
 
-  /* Score ring geometry */
   .score-ring-track {
     stroke: hsl(var(--border) / 0.5);
     fill: none;
@@ -282,9 +255,62 @@
     transition: stroke-dashoffset 1s ease-out;
   }
 
-  /* Active Pulse dot heartbeat style */
   .pulse-dot {
     position: relative;
+  }
+
+  /* Chart animations */
+  @keyframes chart-bar-grow {
+    from { transform: scaleX(0); }
+    to { transform: scaleX(1); }
+  }
+
+  @keyframes chart-bar-grow-y {
+    from { transform: scaleY(0); }
+    to { transform: scaleY(1); }
+  }
+
+  @keyframes chart-fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes chart-draw {
+    from { stroke-dashoffset: var(--arc-length); }
+    to { stroke-dashoffset: 0; }
+  }
+
+  .chart-bar-h {
+    animation: chart-bar-grow 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    transform-origin: left center;
+  }
+
+  .chart-bar-v {
+    animation: chart-bar-grow-y 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    transform-origin: bottom center;
+  }
+
+  .chart-fade-in {
+    animation: chart-fade-in 0.4s ease-out forwards;
+  }
+
+  .chart-arc {
+    animation: chart-draw 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  }
+
+  @keyframes page-enter {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .page-enter {
+    animation: page-enter 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
 
   .pulse-dot::after {
@@ -302,14 +328,12 @@
       transform: scale(1);
       opacity: 0.4;
     }
-
     100% {
       transform: scale(2.2);
       opacity: 0;
     }
   }
 
-  /* Node type styling for knowledge graph */
   .node-incident {
     fill: hsl(var(--brand-500));
   }

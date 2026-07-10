@@ -11,3 +11,4 @@ odin-memory-engine = { path = "../memory-engine" }
 odin-retrieval-engine = { path = "../retrieval-engine" }
 odin-decision-engine = { path = "../decision-engine" }
 odin-policy-gate = { path = "../policy-gate" }
+odin-infrastructure = { path = "../infrastructure" }

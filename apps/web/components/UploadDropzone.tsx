@@ -11,7 +11,7 @@ interface UploadDropzoneProps {
 }
 
 const ALLOWED_EXTENSIONS = ["json", "log", "txt"];
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
 function validateFile(file: File): string | null {
   const ext = file.name.split(".").pop()?.toLowerCase();
@@ -64,11 +64,11 @@ export function UploadDropzone({
           if (f) handleFile(f);
         }}
         className={cn(
-          "border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-colors",
+          "border-2 border-dashed rounded-xl p-12 text-center cursor-pointer transition-all duration-300 group",
           dragging
-            ? "border-primary bg-primary/5"
-            : "border-border hover:border-primary/50",
-          error && "border-red-400/50 bg-red-500/5",
+            ? "border-accent-foreground/50 bg-accent/60 scale-[1.01]"
+            : "border-border hover:border-accent-foreground/30 hover:bg-accent/30",
+          error && "border-destructive/50 bg-destructive/5",
         )}
         onClick={() => {
           const input = document.createElement("input");
@@ -80,14 +80,21 @@ export function UploadDropzone({
           input.click();
         }}
       >
-        <Upload className="mx-auto h-10 w-10 text-muted-foreground mb-4" />
-        <p className="text-lg font-medium">Drop logs here or click to upload</p>
+        <div className={cn(
+          "mx-auto w-14 h-14 rounded-xl flex items-center justify-center transition-all duration-300",
+          dragging
+            ? "bg-accent-foreground text-primary-foreground -translate-y-1"
+            : "bg-secondary text-muted-foreground group-hover:bg-accent/50 group-hover:text-accent-foreground"
+        )}>
+          <Upload className="h-6 w-6" />
+        </div>
+        <p className="text-lg font-medium mt-4">Drop logs here or click to upload</p>
         <p className="text-sm text-muted-foreground mt-1">
           JSON, LOG, or TXT files (max {maxSize / (1024 * 1024)}MB)
         </p>
       </div>
       {error && (
-        <div className="flex items-center gap-2 text-sm text-red-400">
+        <div className="flex items-center gap-2 text-sm text-destructive">
           <AlertCircle className="h-4 w-4" />
           <span>{error}</span>
         </div>

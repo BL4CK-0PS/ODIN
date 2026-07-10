@@ -4,6 +4,7 @@ pub use odin_memory_engine;
 pub use odin_retrieval_engine;
 pub use odin_decision_engine;
 pub use odin_policy_gate;
+pub use odin_infrastructure;
 
 pub struct Odin {
     pub intelligence: odin_intelligence_engine::IntelligenceEngine,

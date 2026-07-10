@@ -108,11 +108,6 @@ export interface PlaybookResponse {
 export const api = {
   health: () => request<{ status: string; version: string }>("/system/health"),
 
-  version: () =>
-    request<{ version: string; name: string; build: string }>(
-      "/system/version",
-    ),
-
   uploadIncident: (body: {
     title: string;
     description: string;

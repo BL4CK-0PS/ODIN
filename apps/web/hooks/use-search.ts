@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
-import { mockSimilarResults } from "@/lib/mock-data";
+import { getMockSimilarResults } from "@/lib/mock-data";
 import type { RankedResult } from "@/lib/types";
 
 export function useSearchSimilar(incidentId: string | null, topK = 5) {
@@ -11,7 +11,7 @@ export function useSearchSimilar(incidentId: string | null, topK = 5) {
         const res = await api.searchSimilar(incidentId!, topK);
         return res.results as RankedResult[];
       } catch {
-        return mockSimilarResults;
+        return getMockSimilarResults(incidentId!);
       }
     },
     enabled: !!incidentId,
@@ -34,7 +34,7 @@ export function useSearchQuery(query: string) {
         if (!json.success) throw new Error(json.error || "Search failed");
         return json.data.results as RankedResult[];
       } catch {
-        return mockSimilarResults;
+        return getMockSimilarResults("inc-001");
       }
     },
     enabled: query.length > 2,

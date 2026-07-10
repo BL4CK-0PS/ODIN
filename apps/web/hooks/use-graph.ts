@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useGraphStore } from "@/stores/graph";
-import { mockGraph } from "@/lib/mock-data";
+import { getMockGraph, mockIncidents } from "@/lib/mock-data";
 import type { GraphData, GraphNode, GraphEdge } from "@/stores/graph";
 
 export function useInvestigationGraph(incidentId: string | null) {
@@ -17,9 +17,10 @@ export function useInvestigationGraph(incidentId: string | null) {
         setEdges(data.edges as GraphEdge[]);
         return data;
       } catch {
-        setNodes(mockGraph.nodes);
-        setEdges(mockGraph.edges);
-        return mockGraph;
+        const fallback = getMockGraph(incidentId!);
+        setNodes(fallback.nodes);
+        setEdges(fallback.edges);
+        return fallback;
       }
     },
     enabled: !!incidentId,
@@ -44,9 +45,16 @@ export function useGlobalGraph() {
         setEdges(data.edges);
         return data;
       } catch {
-        setNodes(mockGraph.nodes);
-        setEdges(mockGraph.edges);
-        return mockGraph;
+        const allNodes: GraphNode[] = [];
+        const allEdges: GraphEdge[] = [];
+        for (const inc of mockIncidents) {
+          const g = getMockGraph(inc.id);
+          allNodes.push(...g.nodes);
+          allEdges.push(...g.edges);
+        }
+        setNodes(allNodes);
+        setEdges(allEdges);
+        return { nodes: allNodes, edges: allEdges };
       }
     },
     retry: 1,

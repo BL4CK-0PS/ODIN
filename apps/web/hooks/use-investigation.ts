@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { useInvestigationStore } from "@/stores/investigation";
-import { mockIncidents, getMockIncident, mockTimeline, mockMemory, mockGraph, mockPlaybooks } from "@/lib/mock-data";
+import { mockIncidents, getMockIncident, getMockTimeline, getMockMemory, getMockGraph, getMockPlaybooks } from "@/lib/mock-data";
 import type { CanonicalIncident } from "@/lib/types";
 
 export function useInvestigation(id: string) {
@@ -25,10 +25,10 @@ export function useInvestigation(id: string) {
         setIncident(incident);
         return {
           incident,
-          timeline: mockTimeline,
-          memory: mockMemory,
-          graph: mockGraph,
-          playbooks: mockPlaybooks,
+          timeline: getMockTimeline(id),
+          memory: getMockMemory(id),
+          graph: getMockGraph(id),
+          playbooks: getMockPlaybooks(id),
         };
       }
     },

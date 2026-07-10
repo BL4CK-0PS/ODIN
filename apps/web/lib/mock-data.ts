@@ -116,10 +116,10 @@ export function getMockEvidence(incidentId: string) {
   }));
 }
 
-export const mockTimeline = (() => {
-  const evidence = getMockEvidence("inc-001");
+export function getMockTimeline(incidentId: string) {
+  const evidence = getMockEvidence(incidentId);
   return {
-    incident_id: "inc-001",
+    incident_id: incidentId,
     events: evidence.map((ev) => ({
       id: ev.id,
       source: ev.source,
@@ -129,142 +129,201 @@ export const mockTimeline = (() => {
       content: ev.content,
     })),
   };
-})();
+}
 
-export const mockMemory: MemoryObject = {
-  id: "mem-001",
-  incident_id: "inc-001",
-  summary:
-    "Suspicious encoded PowerShell command executed in HR department computer. " +
-    "Evidence includes Sysmon process creation events showing encoded command download, " +
-    "and network capture showing connection to C2 server. Indicators: 192.168.1.55, c2-server.com, T1059.",
-  context: { title: mock_incident_1.title, severity: mock_incident_1.severity },
-  confidence: 0.88,
-  version: 2,
-  created_at: "2024-12-03T14:20:00Z",
-};
+export function getMockMemory(incidentId: string): MemoryObject {
+  const inc = getMockIncident(incidentId);
+  const techs = inc.mitre_techniques.slice(0, 3).join(", ");
+  return {
+    id: `mem-${incidentId.replace("inc-", "")}`,
+    incident_id: incidentId,
+    summary: inc.description.slice(0, 250) + (techs ? ` [${techs}]` : ""),
+    context: { title: inc.title, severity: inc.severity },
+    confidence: +(0.7 + Math.random() * 0.25).toFixed(2),
+    version: 1 + Math.floor(Math.random() * 3),
+    created_at: inc.created_at,
+  };
+}
 
-const graphNodes: GraphNode[] = [
-  { id: "g-n1", type: "incident", label: mock_incident_1.title.slice(0, 30) },
-  { id: "g-n2", type: "ipaddress", label: "192.168.1.55" },
-  { id: "g-n3", type: "domain", label: "c2-server.com" },
-  { id: "g-n4", type: "process", label: "powershell.exe" },
-  { id: "g-n5", type: "file", label: "malware.exe" },
-  { id: "g-n6", type: "evidence", label: "Sysmon Event 1" },
-  { id: "g-n7", type: "evidence", label: "Network Capture" },
-  { id: "g-n8", type: "hostname", label: "HR-WS-042" },
-  { id: "g-n9", type: "user", label: "admin" },
-  { id: "g-n10", type: "domain", label: "c2-server.com:80" },
-];
+function extractIocsFromEvidence(evidence: { source: string; content: string; content_type: string }[]) {
+  const ips = new Set<string>();
+  const domains = new Set<string>();
+  const processes = new Set<string>();
+  const files = new Set<string>();
+  const users = new Set<string>();
 
-const graphEdges: GraphEdge[] = [
-  { source: "g-n1", target: "g-n6", type: "GeneratedBy", label: "generated_by" },
-  { source: "g-n1", target: "g-n7", type: "GeneratedBy", label: "generated_by" },
-  { source: "g-n6", target: "g-n4", type: "Observed", label: "observed" },
-  { source: "g-n6", target: "g-n8", type: "Targets", label: "targets" },
-  { source: "g-n7", target: "g-n3", type: "CommunicatesWith", label: "c2_server" },
-  { source: "g-n7", target: "g-n5", type: "Dropped", label: "dropped" },
-  { source: "g-n4", target: "g-n9", type: "ExecutedBy", label: "executed_by" },
-  { source: "g-n3", target: "g-n10", type: "ResolvesTo", label: "resolves_to" },
-];
+  for (const ev of evidence) {
+    const text = ev.content;
+    const ipMatches = text.match(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g);
+    if (ipMatches) for (const ip of ipMatches) ips.add(ip);
 
-export const mockGraph = { nodes: graphNodes, edges: graphEdges };
+    const domainMatches = text.match(/\b([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}\b/g);
+    if (domainMatches) for (const d of domainMatches) if (!d.match(/^\d/)) domains.add(d);
 
-export const mockPlaybooks = {
-  incident_id: "inc-001",
-  playbooks: [
-    {
-      name: "Incident Response - Phishing / Remote Execution",
-      steps: [
-        "Isolate affected workstation from network",
-        "Block C2 domain and IP at perimeter firewall",
-        "Collect Sysmon and network logs for forensic preservation",
-        "Scan for lateral movement indicators across the subnet",
-        "Reset credentials for compromised user accounts",
-        "Run full endpoint scan on affected host",
-        "Update threat intelligence IOC feeds",
-        "Document findings and escalate if data breach confirmed",
-      ],
-    },
-  ],
-};
+    const procMatches = text.match(/\b[\w.-]+\.exe\b/gi);
+    if (procMatches) for (const p of procMatches) processes.add(p.toLowerCase());
 
-export const mockSimilarResults: RankedResult[] = [
-  {
-    memory: {
-      id: "mem-010",
-      incident_id: "inc-010",
-      summary:
-        "Cobalt Strike beacon lateral movement via PsExec across finance network. " +
-        "Initial access through phishing email with macro-enabled document. " +
-        "C2 communication over HTTPS to known APT29 infrastructure.",
-      context: { title: "APT29 Lateral Movement - Finance" },
-      confidence: 0.89,
-      version: 3,
-      created_at: "2024-09-15T10:00:00Z",
-    },
-    score: {
-      overall: 0.87,
-      structural: 0.91,
-      semantic: 0.84,
-      context: 0.86,
-    },
-    reasons: [
-      "Similar C2 infrastructure (port 80/443)",
-      "Same initial access vector (encoded PowerShell)",
-      "Comparable network indicators",
+    const fileMatches = text.match(/\b[\w.-]+\.(dll|exe|lnk|docm|ps1|bat|vbs|js)\b/gi);
+    if (fileMatches) for (const f of fileMatches) files.add(f.toLowerCase());
+
+    const userMatch = text.match(/\buser=(\w+)/i);
+    if (userMatch) users.add(userMatch[1]);
+  }
+
+  return { ips, domains, processes, files, users };
+}
+
+function buildGraphFromIncident(incidentId: string): { nodes: GraphNode[]; edges: GraphEdge[] } {
+  const inc = getMockIncident(incidentId);
+  const file = rawFiles.find((f) => f.title === inc.title) ?? rawFiles[0];
+  const iocs = extractIocsFromEvidence(file.evidence);
+
+  const nodes: GraphNode[] = [];
+  const edges: GraphEdge[] = [];
+  let nid = 0;
+
+  const nidFor = () => `g-n${++nid}`;
+
+  const incidentNodeId = nidFor();
+  nodes.push({ id: incidentNodeId, type: "incident", label: inc.title.slice(0, 30) });
+
+  const evidenceNodeIds: string[] = [];
+  for (const ev of file.evidence) {
+    const evId = nidFor();
+    evidenceNodeIds.push(evId);
+    nodes.push({ id: evId, type: "evidence", label: ev.source.slice(0, 25) });
+    edges.push({ source: incidentNodeId, target: evId, type: "GeneratedBy", label: "generated_by" });
+  }
+
+  for (const ip of Array.from(iocs.ips).slice(0, 4)) {
+    const ipId = nidFor();
+    nodes.push({ id: ipId, type: "ipaddress", label: ip });
+    for (const evId of evidenceNodeIds.slice(0, 2)) {
+      edges.push({ source: evId, target: ipId, type: "Observed", label: "observed" });
+    }
+  }
+
+  for (const domain of Array.from(iocs.domains).slice(0, 3)) {
+    const domId = nidFor();
+    nodes.push({ id: domId, type: "domain", label: domain });
+    for (const evId of evidenceNodeIds.slice(0, 2)) {
+      edges.push({ source: evId, target: domId, type: "CommunicatesWith", label: "c2_server" });
+    }
+  }
+
+  for (const proc of Array.from(iocs.processes).slice(0, 3)) {
+    const procId = nidFor();
+    nodes.push({ id: procId, type: "process", label: proc });
+    for (const evId of evidenceNodeIds.slice(0, 2)) {
+      edges.push({ source: evId, target: procId, type: "Observed", label: "observed" });
+    }
+  }
+
+  for (const file of Array.from(iocs.files).slice(0, 3)) {
+    const fileId = nidFor();
+    nodes.push({ id: fileId, type: "file", label: file });
+    for (const evId of evidenceNodeIds.slice(0, 2)) {
+      edges.push({ source: evId, target: fileId, type: "Dropped", label: "dropped" });
+    }
+  }
+
+  for (const user of Array.from(iocs.users).slice(0, 2)) {
+    const userId = nidFor();
+    nodes.push({ id: userId, type: "user", label: user });
+  }
+
+  return { nodes, edges };
+}
+
+export function getMockGraph(incidentId: string) {
+  return buildGraphFromIncident(incidentId);
+}
+
+export function getMockPlaybooks(incidentId: string) {
+  const inc = getMockIncident(incidentId);
+  const file = rawFiles.find((f) => f.title === inc.title) ?? rawFiles[0];
+  const evidenceSources = file.evidence.map((e) => e.source);
+  const title = inc.title;
+  const name = title.length > 40 ? `Incident Response — ${title.slice(0, 36)}...` : `Incident Response — ${title}`;
+
+  const steps: string[] = [];
+
+  const hasNetwork = evidenceSources.some((s) => s.toLowerCase().includes("network"));
+  const hasSysmon = evidenceSources.some((s) => s.toLowerCase().includes("sysmon"));
+  const hasEmail = evidenceSources.some((s) => s.toLowerCase().includes("email"));
+  const hasEdr = evidenceSources.some((s) => s.toLowerCase().includes("edr"));
+  const hasFile = evidenceSources.some((s) => s.toLowerCase().includes("file"));
+
+  if (hasEmail) steps.push("Analyze email gateway logs for phishing indicators and malicious attachments");
+  if (hasSysmon) steps.push("Review Sysmon process creation and network events for execution chain");
+  if (hasEdr) steps.push("Investigate EDR alerts for suspicious process behavior and file writes");
+  if (hasNetwork) steps.push("Capture and analyze network traffic for C2 communication patterns");
+  if (hasFile) steps.push("Examine file system artifacts and audit logs for unauthorized changes");
+  steps.push("Isolate affected endpoints from the network");
+  steps.push("Block identified IOCs at perimeter firewall and DNS");
+  steps.push("Collect forensic evidence for preservation");
+  if (hasSysmon || hasEdr) steps.push("Scan environment for lateral movement indicators");
+  steps.push("Reset credentials for compromised accounts");
+  steps.push("Document findings and escalate to incident commander");
+
+  return {
+    incident_id: incidentId,
+    playbooks: [
+      {
+        name,
+        steps,
+      },
     ],
-  },
-  {
-    memory: {
-      id: "mem-011",
-      incident_id: "inc-011",
-      summary:
-        "Encoded PowerShell download cradle used to deploy second-stage payload. " +
-        "Connection from internal host to external server on port 80. " +
-        "Malware binary dropped to local temp directory.",
-      context: { title: "PowerShell Download Cradle - DevOps" },
-      confidence: 0.82,
-      version: 2,
-      created_at: "2024-06-20T14:00:00Z",
-    },
-    score: {
-      overall: 0.78,
-      structural: 0.82,
-      semantic: 0.75,
-      context: 0.77,
-    },
-    reasons: [
-      "Identical encoded command pattern",
-      "Same C2 domain family",
-      "Matching TTPs (T1059, T1059.001)",
-    ],
-  },
-  {
-    memory: {
-      id: "mem-012",
-      incident_id: "inc-012",
-      summary:
-        "Suspicious network connection from workstation to unknown external IP on port 80. " +
-        "Subsequent malware download detected by EDR. DLL injection into legitimate process.",
-      context: { title: "Network-Based Malware Delivery - Sales" },
-      confidence: 0.71,
-      version: 1,
-      created_at: "2024-08-05T09:00:00Z",
-    },
-    score: {
-      overall: 0.64,
-      structural: 0.60,
-      semantic: 0.68,
-      context: 0.63,
-    },
-    reasons: [
-      "Similar network connection pattern",
-      "DLL injection technique match",
-      "Same severity classification",
-    ],
-  },
-];
+  };
+}
+
+export function getMockSimilarResults(incidentId: string) {
+  const inc = getMockIncident(incidentId);
+  const file = rawFiles.find((f) => f.title === inc.title) ?? rawFiles[0];
+  const results: RankedResult[] = [];
+
+  const otherFiles = rawFiles.filter((_, i) => rawFiles[i].title !== file.title);
+  const picked = otherFiles.slice(0, 3);
+
+  for (let k = 0; k < picked.length; k++) {
+    const other = picked[k];
+    const otherInc = mockIncidents.find((m) => m.title === other.title);
+    const techs = (otherInc?.mitre_techniques ?? []).slice(0, 3).join(", ");
+    const iocs = extractIocsFromEvidence(other.evidence);
+    const reasons: string[] = [];
+
+    const ourIocs = extractIocsFromEvidence(file.evidence);
+    const sharedIps = Array.from(ourIocs.ips).filter((ip) => iocs.ips.has(ip));
+    const sharedDomains = Array.from(ourIocs.domains).filter((d) => iocs.domains.has(d));
+    const sharedTechs = (inc.mitre_techniques ?? []).filter((t) => (otherInc?.mitre_techniques ?? []).includes(t));
+
+    if (sharedIps.length) reasons.push(`Shared IP indicators: ${sharedIps.slice(0, 2).join(", ")}`);
+    if (sharedDomains.length) reasons.push(`Shared domain indicators: ${sharedDomains.slice(0, 2).join(", ")}`);
+    if (sharedTechs.length) reasons.push(`Matching TTPs: ${sharedTechs.slice(0, 2).join(", ")}`);
+    if (reasons.length === 0) reasons.push(`Similar severity (${otherInc?.severity ?? "N/A"}) and attack pattern`);
+
+    results.push({
+      memory: {
+        id: `mem-${(otherInc?.id ?? `0${k + 1}`).replace("inc-", "")}`,
+        incident_id: otherInc?.id ?? `inc-0${k + 1}`,
+        summary: other.description.slice(0, 200) + (techs ? ` [${techs}]` : ""),
+        context: { title: other.title, severity: otherInc?.severity },
+        confidence: +(0.7 + Math.random() * 0.25).toFixed(2),
+        version: 1 + Math.floor(Math.random() * 3),
+        created_at: otherInc?.created_at ?? "2024-12-01T00:00:00Z",
+      },
+      score: {
+        overall: +(0.6 + Math.random() * 0.3).toFixed(2),
+        structural: +(0.6 + Math.random() * 0.3).toFixed(2),
+        semantic: +(0.6 + Math.random() * 0.3).toFixed(2),
+        context: +(0.6 + Math.random() * 0.3).toFixed(2),
+      },
+      reasons,
+    });
+  }
+
+  return results;
+}
 
 export const mockThreatMemories: MemoryObject[] = mockIncidents.map((inc) => {
   const file = rawFiles.find((f) => f.title === inc.title);
@@ -286,5 +345,5 @@ export const mockStats = {
   investigations: mockIncidents.length,
   memories: mockThreatMemories.length,
   entities: mockIncidents.reduce((sum, inc) => sum + inc.entity_ids.length, 0),
-  matches: mockSimilarResults.length,
+  matches: 3,
 };

@@ -2,6 +2,7 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -19,8 +20,27 @@ import { useToast } from "@/hooks/use-toast";
 import { api } from "@/lib/api";
 import { useParams } from "next/navigation";
 import { useState } from "react";
-import { ThumbsUp, ThumbsDown } from "lucide-react";
+import { ThumbsUp, ThumbsDown, ArrowRight } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import type { RankedResult, Evidence } from "@/lib/types";
+
+const STATUS_TRANSITIONS: Record<string, string[]> = {
+  New: ["Investigating", "Closed"],
+  Investigating: ["Contained", "Eradicated", "Closed"],
+  Contained: ["Eradicated", "Recovered", "Closed"],
+  Eradicated: ["Recovered", "Closed"],
+  Recovered: ["Closed"],
+  Closed: [],
+};
+
+const STATUS_COLORS: Record<string, string> = {
+  New: "bg-blue-500/10 text-blue-500 border-blue-500/20",
+  Investigating: "bg-amber-500/10 text-amber-500 border-amber-500/20",
+  Contained: "bg-orange-500/10 text-orange-500 border-orange-500/20",
+  Eradicated: "bg-red-500/10 text-red-500 border-red-500/20",
+  Recovered: "bg-green-500/10 text-green-500 border-green-500/20",
+  Closed: "bg-gray-500/10 text-gray-500 border-gray-500/20",
+};
 
 interface TimelineViewEvent {
   id: string;
@@ -113,6 +133,9 @@ export default function InvestigationPage() {
   const { id } = useParams<{ id: string }>();
   const { data, isLoading, error } = useInvestigation(id);
   const { data: similarityData, isLoading: isSimLoading } = useSearchSimilar(id);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [updatingStatus, setUpdatingStatus] = useState(false);
 
   if (isLoading) {
     return (
@@ -168,16 +191,60 @@ export default function InvestigationPage() {
     };
   });
 
-  const playbookSteps: string[] = (playbooks?.playbooks?.[0] as Record<string, unknown>)?.steps as string[] || ["Isolate affected systems", "Collect evidence", "Contain threat", "Remediate"];
-  const playbookName: string = (playbooks?.playbooks?.[0] as Record<string, unknown>)?.name as string || "Response Playbook";
+  const playbookList = (playbooks?.playbooks || []) as { name: string; steps: string[] }[];
+  const primaryPlaybook = playbookList[0] || { name: "Response Playbook", steps: ["Isolate affected systems", "Collect evidence", "Contain threat", "Remediate"] };
 
   const results: RankedResult[] = (similarityData || []).filter(r => r.memory?.incident_id !== id);
 
+  const currentStatus = incident?.status || "New";
+  const allowedTransitions = STATUS_TRANSITIONS[currentStatus] || [];
+
+  const handleStatusChange = async (newStatus: string) => {
+    setUpdatingStatus(true);
+    try {
+      await api.updateStatus(id, newStatus);
+      queryClient.invalidateQueries({ queryKey: ["investigation", id] });
+      toast({ title: `Status updated to ${newStatus}`, variant: "success" });
+    } catch (err) {
+      toast({
+        title: "Failed to update status",
+        description: err instanceof Error ? err.message : undefined,
+        variant: "error",
+      });
+    } finally {
+      setUpdatingStatus(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">{incTitle}</h1>
-        <p className="text-muted-foreground mt-1">{incDesc}</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">{incTitle}</h1>
+          <p className="text-muted-foreground mt-1">{incDesc}</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="outline" className={STATUS_COLORS[currentStatus]}>
+            {currentStatus}
+          </Badge>
+          {allowedTransitions.length > 0 && (
+            <div className="flex gap-1">
+              {allowedTransitions.map((status) => (
+                <Button
+                  key={status}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleStatusChange(status)}
+                  disabled={updatingStatus}
+                  className="text-xs"
+                >
+                  {status}
+                  <ArrowRight className="h-3 w-3 ml-1" />
+                </Button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-4">
@@ -188,10 +255,19 @@ export default function InvestigationPage() {
         />
         <EvidenceTable evidence={evidenceList} />
         <div className="space-y-4">
-          <PlaybookCard
-            name={playbookName}
-            steps={playbookSteps}
-          />
+          {playbookList.map((pb, idx) => (
+            <PlaybookCard
+              key={idx}
+              name={pb.name}
+              steps={pb.steps}
+            />
+          ))}
+          {playbookList.length === 0 && (
+            <PlaybookCard
+              name={primaryPlaybook.name}
+              steps={primaryPlaybook.steps}
+            />
+          )}
           <FeedbackSection incidentId={id} />
         </div>
       </div>

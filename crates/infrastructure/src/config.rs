@@ -3,6 +3,7 @@ use std::env;
 #[derive(Debug, Clone)]
 pub struct InfrastructureConfig {
     pub database_url: String,
+    pub redis_url: String,
     pub qdrant_url: String,
     pub ollama_url: String,
     pub ollama_embed_model: String,
@@ -14,6 +15,9 @@ impl InfrastructureConfig {
         Self {
             database_url: env::var("DATABASE_URL").unwrap_or_else(|_|
                 "postgresql://odin:odin@localhost:5432/odin".to_string()
+            ),
+            redis_url: env::var("REDIS_URL").unwrap_or_else(|_|
+                "redis://localhost:6379".to_string()
             ),
             qdrant_url: env::var("QDRANT_URL").unwrap_or_else(|_|
                 "http://localhost:6334".to_string()

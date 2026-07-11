@@ -6,7 +6,7 @@ use odin_core::odin_intelligence_engine::{IntelligenceEngine, OllamaPipeline};
 use odin_core::odin_retrieval_engine::{RetrievalEngine, QdrantClient};
 use odin_core::odin_decision_engine::DecisionEngine;
 use odin_core::odin_policy_gate::PolicyGate;
-use odin_core::odin_infrastructure::{InfrastructureConfig, OllamaClient};
+use odin_core::odin_infrastructure::{InfrastructureConfig, OllamaClient, RedisClient};
 
 pub type IncidentMap = Arc<RwLock<HashMap<String, CanonicalIncident>>>;
 pub type EvidenceMap = Arc<RwLock<HashMap<String, Vec<Evidence>>>>;
@@ -28,13 +28,12 @@ pub struct AppState {
     pub memory: MemoryEngine,
     pub intelligence: Arc<RwLock<IntelligenceEngine>>,
     pub retrieval: RetrievalEngine,
-    #[allow(dead_code)]
     pub decision: DecisionEngine,
     pub policy: PolicyGate,
     pub pg_store: Option<PgStore>,
     pub qdrant: Option<QdrantClient>,
     pub ollama_client: Option<OllamaClient>,
-    #[allow(dead_code)]
+    pub redis: Option<RedisClient>,
     pub infra_config: InfrastructureConfig,
 }
 
@@ -72,6 +71,7 @@ impl AppState {
             pg_store,
             qdrant,
             ollama_client,
+            redis: None,
             infra_config: config,
         }
     }
@@ -133,6 +133,17 @@ impl AppState {
             }
             Err(e) => {
                 tracing::warn!("Qdrant not available, using local scoring only: {}", e);
+            }
+        }
+
+        let mut redis = RedisClient::new(&config.redis_url);
+        match redis.connect().await {
+            Ok(()) => {
+                self.redis = Some(redis);
+                tracing::info!("Redis connected");
+            }
+            Err(e) => {
+                tracing::warn!("Redis not available: {}", e);
             }
         }
     }

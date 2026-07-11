@@ -77,9 +77,11 @@ async fn main() {
         .route("/api/v1/incidents/{id}/playbooks", get(incidents::get_playbooks))
         .route("/api/v1/incidents/{id}/feedback", post(incidents::post_feedback))
         .route("/api/v1/incidents/{id}/narrative", get(incidents::generate_narrative))
+        .route("/api/v1/incidents/{id}/status", post(incidents::update_status))
         .route("/api/v1/memories", get(incidents::list_memories))
         .route("/api/v1/search", post(incidents::search_text))
         .route("/api/v1/graph", get(incidents::get_global_graph))
+        .route("/api/v1/consolidation/stats", get(incidents::get_consolidation_stats))
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(tower_http::trace::DefaultMakeSpan::new().include_headers(true))

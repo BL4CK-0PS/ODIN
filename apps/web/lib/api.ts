@@ -156,4 +156,22 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ feedback, rating }),
     }),
+
+  updateStatus: (id: string, status: string) =>
+    request<{ incident_id: string; old_status: string; new_status: string }>(
+      `/incidents/${id}/status`,
+      {
+        method: "POST",
+        body: JSON.stringify({ status }),
+      },
+    ),
+
+  getConsolidationStats: () =>
+    request<{
+      total_memories: number;
+      expired_purged: number;
+      versions_pruned: number;
+      memories_consolidated: number;
+      ttl_config: Record<string, string>;
+    }>("/consolidation/stats"),
 };

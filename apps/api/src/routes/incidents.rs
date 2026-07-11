@@ -6,7 +6,8 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use odin_core::odin_kernel::{CanonicalIncident, Evidence, EvidenceType, Severity, MemoryObject, Entity, EntityType};
+use odin_core::odin_kernel::{CanonicalIncident, Evidence, EvidenceType, Severity, IncidentStatus, MemoryObject, Entity, EntityType};
+use odin_core::odin_decision_engine::RecommendationKind;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -320,22 +321,47 @@ pub async fn get_incident(
     if id.is_empty() || id.len() > 128 {
         return Err(AppError::BadRequest("Invalid incident ID".into()));
     }
-    if let Some(ref pg) = state.pg_store {
-        match pg.get_incident(&id).await {
-            Ok(Some(incident)) => return Ok(ApiResponse::ok(incident)),
-            Ok(None) => {}
-            Err(e) => tracing::warn!("PgStore get_incident failed, falling back: {}", e),
-        }
-    }
-    match state.incidents.read() {
-        Ok(incidents) => {
-            match incidents.get(&id) {
-                Some(incident) => Ok(ApiResponse::ok(incident.clone())),
-                None => Err(AppError::NotFound("Incident not found".into())),
+
+    if let Some(ref redis) = state.redis {
+        let cache_key = format!("incident:{}", id);
+        if let Ok(Some(cached)) = redis.get(&cache_key).await {
+            if let Ok(incident) = serde_json::from_str::<CanonicalIncident>(&cached) {
+                return Ok(ApiResponse::ok(incident));
             }
         }
-        Err(_) => Err(AppError::LockError),
     }
+
+    let incident = if let Some(ref pg) = state.pg_store {
+        match pg.get_incident(&id).await {
+            Ok(Some(incident)) => incident,
+            _ => {
+                match state.incidents.read() {
+                    Ok(incidents) => match incidents.get(&id) {
+                        Some(i) => i.clone(),
+                        None => return Err(AppError::NotFound("Incident not found".into())),
+                    },
+                    Err(_) => return Err(AppError::LockError),
+                }
+            }
+        }
+    } else {
+        match state.incidents.read() {
+            Ok(incidents) => match incidents.get(&id) {
+                Some(incident) => incident.clone(),
+                None => return Err(AppError::NotFound("Incident not found".into())),
+            },
+            Err(_) => return Err(AppError::LockError),
+        }
+    };
+
+    if let Some(ref redis) = state.redis {
+        let cache_key = format!("incident:{}", id);
+        if let Ok(json) = serde_json::to_string(&incident) {
+            let _ = redis.set(&cache_key, &json, Some(300)).await;
+        }
+    }
+
+    Ok(ApiResponse::ok(incident))
 }
 
 pub async fn get_timeline(
@@ -414,6 +440,15 @@ pub async fn search_similar(
     }
     let top_k = req.top_k.unwrap_or(5).clamp(1, 100);
 
+    let cache_key = format!("search:{}:{}", req.incident_id, top_k);
+    if let Some(ref redis) = state.redis {
+        if let Ok(Some(cached)) = redis.get(&cache_key).await {
+            if let Ok(val) = serde_json::from_str::<serde_json::Value>(&cached) {
+                return Ok(ApiResponse::ok(val));
+            }
+        }
+    }
+
     let query = if let Some(ref pg) = state.pg_store {
         match pg.get_incident(&req.incident_id).await {
             Ok(Some(i)) => i,
@@ -442,7 +477,18 @@ pub async fn search_similar(
     let query_text = format!("{} {}", query.title, query.description);
 
     match state.retrieval.search_hybrid(&query, &candidates, &query_text, top_k).await {
-        Ok(results) => Ok(ApiResponse::ok(serde_json::json!({ "results": results }))),
+        Ok(results) => {
+            let filtered: Vec<_> = results.into_iter().filter(|r| {
+                state.policy.is_allowed(r.score.overall)
+            }).collect();
+            let response = serde_json::json!({ "results": filtered });
+            if let Some(ref redis) = state.redis {
+                if let Ok(json) = serde_json::to_string(&response) {
+                    let _ = redis.set(&cache_key, &json, Some(60)).await;
+                }
+            }
+            Ok(ApiResponse::ok(response))
+        }
         Err(e) => Err(AppError::Internal(e.to_string())),
     }
 }
@@ -481,7 +527,12 @@ pub async fn search_text(
     let candidates = state.memory.list_all().unwrap_or_default();
 
     match state.retrieval.search_hybrid(&dummy_query, &candidates, &req.query, top_k).await {
-        Ok(results) => Ok(ApiResponse::ok(serde_json::json!({ "results": results }))),
+        Ok(results) => {
+            let filtered: Vec<_> = results.into_iter().filter(|r| {
+                state.policy.is_allowed(r.score.overall)
+            }).collect();
+            Ok(ApiResponse::ok(serde_json::json!({ "results": filtered })))
+        }
         Err(e) => Err(AppError::Internal(e.to_string())),
     }
 }
@@ -659,27 +710,118 @@ pub async fn get_playbooks(
     if id.is_empty() || id.len() > 128 {
         return Err(AppError::BadRequest("Invalid incident ID".into()));
     }
-    let policy_results = state.policy.enforce(0.85);
-    let policy_allowed = policy_results.iter().all(|r| {
-        matches!(r.verdict, odin_core::odin_policy_gate::PolicyVerdict::Allow)
+
+    let ev_list = if let Some(ref pg) = state.pg_store {
+        match pg.get_evidence(&id).await {
+            Ok(evidence) => Some(evidence),
+            Err(e) => {
+                tracing::warn!("PgStore get_evidence for playbooks failed: {}", e);
+                None
+            }
+        }
+    } else {
+        None
+    };
+
+    let ev_list = ev_list.unwrap_or_else(|| {
+        match state.evidence.read() {
+            Ok(evidence) => evidence.get(&id).cloned().unwrap_or_default(),
+            Err(_) => Vec::new(),
+        }
     });
-    if !policy_allowed {
-        return Err(AppError::BadRequest("Policy gate blocked".into()));
+
+    if ev_list.is_empty() {
+        return Err(AppError::NotFound("No evidence found for incident".into()));
     }
+
+    let decision = state.decision.evaluate(&ev_list)
+        .map_err(|e| AppError::Internal(e.to_string()))?;
+
+    let overall_confidence = decision.overall_confidence.score;
+
+    if !state.policy.is_allowed(overall_confidence) {
+        let reasons = state.policy.denied_reasons(overall_confidence);
+        return Err(AppError::BadRequest(
+            format!("Policy gate denied: {}", reasons.join("; "))
+        ));
+    }
+
+    let mut playbooks: Vec<serde_json::Value> = Vec::new();
+
+    let mut contain_steps: Vec<String> = Vec::new();
+    let mut investigate_steps: Vec<String> = Vec::new();
+    let mut eradicate_steps: Vec<String> = Vec::new();
+    let mut recover_steps: Vec<String> = Vec::new();
+
+    for rec in &decision.recommendations {
+        match rec.kind {
+            RecommendationKind::Contain => {
+                contain_steps.push(rec.description.clone());
+            }
+            RecommendationKind::Investigate => {
+                investigate_steps.push(rec.description.clone());
+            }
+            RecommendationKind::Eradicate => {
+                eradicate_steps.push(rec.description.clone());
+            }
+            RecommendationKind::Recover => {
+                recover_steps.push(rec.description.clone());
+            }
+            RecommendationKind::Escalate => {
+                contain_steps.push(format!("ESCALATE: {}", rec.description));
+            }
+            RecommendationKind::Monitor => {
+                investigate_steps.push(format!("MONITOR: {}", rec.description));
+            }
+            RecommendationKind::Inform => {
+                investigate_steps.push(format!("INFORM: {}", rec.description));
+            }
+        }
+    }
+
+    if !investigate_steps.is_empty() {
+        playbooks.push(serde_json::json!({
+            "name": "Investigation",
+            "steps": investigate_steps,
+        }));
+    }
+    if !contain_steps.is_empty() {
+        playbooks.push(serde_json::json!({
+            "name": "Containment",
+            "steps": contain_steps,
+        }));
+    }
+    if !eradicate_steps.is_empty() {
+        playbooks.push(serde_json::json!({
+            "name": "Eradication",
+            "steps": eradicate_steps,
+        }));
+    }
+    if !recover_steps.is_empty() {
+        playbooks.push(serde_json::json!({
+            "name": "Recovery",
+            "steps": recover_steps,
+        }));
+    }
+
+    if playbooks.is_empty() {
+        playbooks.push(serde_json::json!({
+            "name": "Default Response",
+            "steps": [
+                "Isolate affected systems",
+                "Collect forensic evidence",
+                "Block identified IOCs",
+                "Scan for lateral movement",
+                "Document findings",
+            ],
+        }));
+    }
+
     Ok(ApiResponse::ok(serde_json::json!({
         "incident_id": id,
-        "playbooks": [
-            {
-                "id": "pb-1",
-                "name": "Initial Triage",
-                "steps": ["Identify affected systems", "Isolate compromised hosts", "Collect forensic data"],
-            },
-            {
-                "id": "pb-2",
-                "name": "Containment",
-                "steps": ["Block C2 domains", "Disable compromised accounts", "Apply firewall rules"],
-            },
-        ]
+        "playbooks": playbooks,
+        "confidence": overall_confidence,
+        "recommendation_count": decision.recommendations.len(),
     })))
 }
 
@@ -745,4 +887,157 @@ pub async fn post_feedback(
 
     tracing::info!(incident_id = %id, rating = req.rating, avg_rating, "Feedback recorded");
     Ok(ApiResponse::ok(format!("Feedback recorded for incident {} (avg rating: {:.1}/5.0)", id, avg_rating)))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct StatusUpdateRequest {
+    pub status: String,
+}
+
+fn valid_transition(from: &IncidentStatus, to: &IncidentStatus) -> bool {
+    matches!((from, to),
+        (IncidentStatus::New, IncidentStatus::Investigating)
+        | (IncidentStatus::New, IncidentStatus::Closed)
+        | (IncidentStatus::Investigating, IncidentStatus::Contained)
+        | (IncidentStatus::Investigating, IncidentStatus::Eradicated)
+        | (IncidentStatus::Investigating, IncidentStatus::Closed)
+        | (IncidentStatus::Contained, IncidentStatus::Eradicated)
+        | (IncidentStatus::Contained, IncidentStatus::Recovered)
+        | (IncidentStatus::Contained, IncidentStatus::Closed)
+        | (IncidentStatus::Eradicated, IncidentStatus::Recovered)
+        | (IncidentStatus::Eradicated, IncidentStatus::Closed)
+        | (IncidentStatus::Recovered, IncidentStatus::Closed)
+    )
+}
+
+fn parse_status(s: &str) -> Result<IncidentStatus, AppError> {
+    match s.to_lowercase().as_str() {
+        "new" => Ok(IncidentStatus::New),
+        "investigating" => Ok(IncidentStatus::Investigating),
+        "contained" => Ok(IncidentStatus::Contained),
+        "eradicated" => Ok(IncidentStatus::Eradicated),
+        "recovered" => Ok(IncidentStatus::Recovered),
+        "closed" => Ok(IncidentStatus::Closed),
+        _ => Err(AppError::BadRequest(format!("Invalid status: {}", s))),
+    }
+}
+
+fn format_status(s: &IncidentStatus) -> &'static str {
+    match s {
+        IncidentStatus::New => "New",
+        IncidentStatus::Investigating => "Investigating",
+        IncidentStatus::Contained => "Contained",
+        IncidentStatus::Eradicated => "Eradicated",
+        IncidentStatus::Recovered => "Recovered",
+        IncidentStatus::Closed => "Closed",
+    }
+}
+
+pub async fn update_status(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Json(req): Json<StatusUpdateRequest>,
+) -> Result<(StatusCode, Json<ApiResponse<serde_json::Value>>), AppError> {
+    if id.is_empty() || id.len() > 128 {
+        return Err(AppError::BadRequest("Invalid incident ID".into()));
+    }
+
+    let new_status = parse_status(&req.status)?;
+
+    let mut incident = if let Some(ref pg) = state.pg_store {
+        match pg.get_incident(&id).await {
+            Ok(Some(i)) => i,
+            _ => {
+                match state.incidents.read() {
+                    Ok(incidents) => match incidents.get(&id) {
+                        Some(i) => i.clone(),
+                        None => return Err(AppError::NotFound("Incident not found".into())),
+                    },
+                    Err(_) => return Err(AppError::LockError),
+                }
+            }
+        }
+    } else {
+        match state.incidents.read() {
+            Ok(incidents) => match incidents.get(&id) {
+                Some(i) => i.clone(),
+                None => return Err(AppError::NotFound("Incident not found".into())),
+            },
+            Err(_) => return Err(AppError::LockError),
+        }
+    };
+
+    if !valid_transition(&incident.status, &new_status) {
+        return Err(AppError::BadRequest(format!(
+            "Invalid status transition: {} -> {}",
+            format_status(&incident.status),
+            format_status(&new_status),
+        )));
+    }
+
+    let old_status = format_status(&incident.status).to_string();
+    incident.status = new_status;
+    incident.updated_at = chrono::Utc::now();
+
+    if let Ok(mut incidents) = state.incidents.write() {
+        incidents.insert(id.clone(), incident);
+    } else {
+        return Err(AppError::LockError);
+    }
+
+    if let Some(ref pg) = state.pg_store {
+        if let Err(e) = pg.update_incident_status(&id, &format_status(&parse_status(&req.status)?)).await {
+            tracing::warn!("PgStore update_status failed: {}", e);
+        }
+    }
+
+    tracing::info!(incident_id = %id, from = %old_status, to = %req.status, "Status updated");
+    Ok(ApiResponse::ok(serde_json::json!({
+        "incident_id": id,
+        "old_status": old_status,
+        "new_status": req.status,
+    })))
+}
+
+pub async fn get_consolidation_stats(
+    State(state): State<Arc<AppState>>,
+) -> Result<(StatusCode, Json<ApiResponse<serde_json::Value>>), AppError> {
+    let memories = state.memory.list_all().unwrap_or_default();
+    let total_memories = memories.len();
+
+    let mut expired_count = 0;
+    let now = chrono::Utc::now();
+    for mem in &memories {
+        if let Some(expires_at) = mem.expires_at {
+            if expires_at < now {
+                expired_count += 1;
+            }
+        }
+    }
+
+    let total_versions: usize = if let Some(ref pg) = state.pg_store {
+        match pg.get_memory_version_counts().await {
+            Ok(counts) => counts.values().sum(),
+            Err(_) => 0,
+        }
+    } else {
+        0
+    };
+
+    let consolidated_count = memories.iter()
+        .filter(|m| m.version > 1)
+        .count();
+
+    Ok(ApiResponse::ok(serde_json::json!({
+        "total_memories": total_memories,
+        "expired_purged": expired_count,
+        "versions_pruned": total_versions,
+        "memories_consolidated": consolidated_count,
+        "ttl_config": {
+            "critical": "365 days",
+            "high": "180 days",
+            "medium": "90 days",
+            "low": "30 days",
+        },
+    })))
 }

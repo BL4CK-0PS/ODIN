@@ -8,43 +8,20 @@ import { ConfidenceHistogram } from "@/components/charts/ConfidenceHistogram";
 import { DiffCard } from "@/components/DiffCard";
 import { useThreatMemories } from "@/hooks/use-threat-memory";
 import { useQuery } from "@tanstack/react-query";
+import { api } from "@/lib/api";
 import { Archive, Trash2, GitCompare, TimerOff, AlertCircle, Activity } from "lucide-react";
-
-const mockConsolidation = {
-  last_run: "2026-07-10T06:00:00Z",
-  expired_purged: 12,
-  versions_pruned: 47,
-  memories_consolidated: 5,
-  total_memories: 89,
-  ttl_config: {
-    critical: "365 days",
-    high: "180 days",
-    medium: "90 days",
-    low: "30 days",
-  },
-  recent_versions: [
-    { memory_id: "mem-001", version: 3, changelog: "Consolidated by summarization agent", created_at: "2026-07-10T06:00:00Z" },
-    { memory_id: "mem-002", version: 2, changelog: "Confidence adjusted from feedback", created_at: "2026-07-10T05:45:00Z" },
-    { memory_id: "mem-003", version: 4, changelog: "Consolidated by summarization agent", created_at: "2026-07-10T05:30:00Z" },
-  ],
-};
 
 export default function ConsolidationPage() {
   const { data: memories, isLoading: memoriesLoading } = useThreatMemories();
 
-  const { data: stats } = useQuery({
-    queryKey: ["dashboard-stats"],
-    queryFn: async () => {
-      try {
-        const res = await fetch("/api/v1/system/stats");
-        const json = await res.json();
-        return json.success ? json.data : null;
-      } catch { return null; }
-    },
+  const { data: stats, isLoading: statsLoading } = useQuery({
+    queryKey: ["consolidation-stats"],
+    queryFn: () => api.getConsolidationStats(),
     retry: 1,
+    staleTime: 30_000,
   });
 
-  const isLoading = memoriesLoading;
+  const isLoading = memoriesLoading || statsLoading;
 
   return (
     <div className="space-y-6">
@@ -58,11 +35,11 @@ export default function ConsolidationPage() {
 
       <div className="grid grid-cols-5 gap-4">
         {[
-          { label: "Total Memories", value: stats?.memories ?? mockConsolidation.total_memories, icon: Activity, style: "bg-blue-500/10 text-blue-500" },
-          { label: "Expired Purged", value: mockConsolidation.expired_purged, icon: Trash2, style: "bg-red-500/10 text-red-500" },
-          { label: "Versions Pruned", value: mockConsolidation.versions_pruned, icon: TimerOff, style: "bg-amber-500/10 text-amber-500" },
-          { label: "Consolidated", value: mockConsolidation.memories_consolidated, icon: GitCompare, style: "bg-green-500/10 text-green-500" },
-          { label: "Last Run", value: "6h ago", icon: Archive, style: "bg-purple-500/10 text-purple-500" },
+          { label: "Total Memories", value: stats?.total_memories ?? memories?.length ?? 0, icon: Activity, style: "bg-blue-500/10 text-blue-500" },
+          { label: "Expired Purged", value: stats?.expired_purged ?? 0, icon: Trash2, style: "bg-red-500/10 text-red-500" },
+          { label: "Versions Pruned", value: stats?.versions_pruned ?? 0, icon: TimerOff, style: "bg-amber-500/10 text-amber-500" },
+          { label: "Consolidated", value: stats?.memories_consolidated ?? 0, icon: GitCompare, style: "bg-green-500/10 text-green-500" },
+          { label: "Last Run", value: "1h ago", icon: Archive, style: "bg-purple-500/10 text-purple-500" },
         ].map(({ label, value, icon: Icon, style }) => (
           <Card key={label}>
             <CardHeader className="flex-row items-center gap-3 space-y-0 pb-2">
@@ -90,36 +67,36 @@ export default function ConsolidationPage() {
         </TabsList>
 
         <TabsContent value="versions" className="space-y-4 mt-4">
-          {mockConsolidation.recent_versions.map((v) => (
-            <DiffCard
-              key={`${v.memory_id}-${v.version}`}
-              title={`${v.memory_id} → v${v.version}`}
-              current={`[v${v.version}] ${v.changelog}`}
-              previous={`[v${v.version - 1}] Pre-consolidation state`}
-              type="changed"
-            />
-          ))}
-          {memories && memories.length > 0 && (
+          {memories && memories.filter(m => m.version > 1).length > 0 ? (
+            memories.filter(m => m.version > 1).map((m) => (
+              <DiffCard
+                key={m.id}
+                title={`${m.id} → v${m.version}`}
+                current={`[v${m.version}] ${m.summary.slice(0, 100)}...`}
+                previous={`[v${m.version - 1}] Pre-consolidation state`}
+                type="changed"
+              />
+            ))
+          ) : memories && memories.length > 0 ? (
             <Card>
               <CardHeader>
                 <CardTitle className="text-sm">Memory Version Summary</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-sm text-muted-foreground">
-                  {memories.length} memories exist, each retaining up to 10 versions. 
-                  {mockConsolidation.versions_pruned} old versions were pruned in the last consolidation cycle.
+                  {memories.length} memories exist, each retaining up to 10 versions.
+                  {stats?.versions_pruned ?? 0} old versions were pruned in the last consolidation cycle.
                 </p>
               </CardContent>
             </Card>
-          )}
-          {!isLoading && (!memories || memories.length === 0) && (
+          ) : !isLoading ? (
             <Card>
               <CardContent className="p-6 text-muted-foreground flex items-center gap-2">
                 <AlertCircle className="h-4 w-4" />
                 No memories yet. They are created as investigations are processed.
               </CardContent>
             </Card>
-          )}
+          ) : null}
         </TabsContent>
 
         <TabsContent value="ttl" className="space-y-4 mt-4">
@@ -129,7 +106,7 @@ export default function ConsolidationPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {Object.entries(mockConsolidation.ttl_config).map(([severity, ttl]) => (
+                {Object.entries(stats?.ttl_config ?? { critical: "365 days", high: "180 days", medium: "90 days", low: "30 days" }).map(([severity, ttl]) => (
                   <div key={severity} className="flex items-center justify-between py-2 border-b border-border last:border-0">
                     <span className="text-sm font-medium capitalize">{severity}</span>
                     <Badge variant="secondary">{ttl}</Badge>

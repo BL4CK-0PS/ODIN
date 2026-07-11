@@ -301,6 +301,41 @@ impl PgStore {
             })
             .collect())
     }
+
+    pub async fn update_incident_status(
+        &self,
+        incident_id: &str,
+        status: &str,
+    ) -> Result<(), KernelError> {
+        sqlx::query(
+            r#"UPDATE incidents SET status = $1, updated_at = NOW() WHERE id = $2"#,
+        )
+        .bind(status)
+        .bind(incident_id)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| KernelError::Internal(format!("Update status failed: {}", e)))?;
+        Ok(())
+    }
+
+    pub async fn get_memory_version_counts(
+        &self,
+    ) -> Result<std::collections::HashMap<String, usize>, KernelError> {
+        let rows = sqlx::query(
+            r#"SELECT memory_id, COUNT(*) as cnt FROM memory_versions GROUP BY memory_id"#,
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| KernelError::Internal(format!("Get version counts failed: {}", e)))?;
+
+        let mut counts = std::collections::HashMap::new();
+        for r in rows {
+            let mid: String = r.get("memory_id");
+            let cnt: i64 = r.get("cnt");
+            counts.insert(mid, cnt as usize);
+        }
+        Ok(counts)
+    }
 }
 
 impl MemoryStore for PgStore {

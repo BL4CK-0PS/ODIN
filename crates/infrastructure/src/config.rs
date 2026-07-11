@@ -8,6 +8,10 @@ pub struct InfrastructureConfig {
     pub ollama_url: String,
     pub ollama_embed_model: String,
     pub ollama_reason_model: String,
+    pub s3_endpoint: String,
+    pub s3_bucket: String,
+    pub s3_access_key: String,
+    pub s3_secret_key: String,
 }
 
 impl InfrastructureConfig {
@@ -30,6 +34,18 @@ impl InfrastructureConfig {
             ),
             ollama_reason_model: env::var("OLLAMA_REASON_MODEL").unwrap_or_else(|_|
                 "qwen3:8b".to_string()
+            ),
+            s3_endpoint: env::var("S3_ENDPOINT").unwrap_or_else(|_|
+                "http://localhost:9000".to_string()
+            ),
+            s3_bucket: env::var("S3_BUCKET").unwrap_or_else(|_|
+                "odin-artifacts".to_string()
+            ),
+            s3_access_key: env::var("S3_ACCESS_KEY").unwrap_or_else(|_|
+                "minioadmin".to_string()
+            ),
+            s3_secret_key: env::var("S3_SECRET_KEY").unwrap_or_else(|_|
+                "minioadmin".to_string()
             ),
         }
     }

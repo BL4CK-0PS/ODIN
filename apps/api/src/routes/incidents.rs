@@ -4,6 +4,7 @@ use crate::state::AppState;
 use axum::{
     extract::{Path, State},
     http::StatusCode,
+    response::Html,
     Json,
 };
 use odin_core::odin_kernel::{CanonicalIncident, Evidence, EvidenceType, Severity, IncidentStatus, MemoryObject, Entity, EntityType};
@@ -186,12 +187,77 @@ pub async fn upload(
     let mut ext_techniques = Vec::new();
     let mut ext_entities = Vec::new();
 
+    let use_ai_extraction = state.ollama_client.is_some();
+
     for e in req.evidence {
         let ct = parse_evidence_type(&e.content_type);
         let tecs = extract_mitre_techniques(&e.content);
         ext_techniques.extend(tecs);
-        let ents = extract_entities_from_content(&e.content);
-        ext_entities.extend(ents);
+
+        if use_ai_extraction {
+            if let Some(ref ollama) = state.ollama_client {
+                        let content_type_str = match ct {
+                            EvidenceType::Log => "log",
+                            EvidenceType::NetworkCapture => "network_capture",
+                            EvidenceType::MemoryDump => "memory_dump",
+                            EvidenceType::FileSystemArtifact => "file_system_artifact",
+                            EvidenceType::ThreatIntelReport => "threat_intel_report",
+                            EvidenceType::UserReport => "user_report",
+                            _ => "other",
+                        };
+                match ollama.extract_entities_with_ai(&e.content, content_type_str).await {
+                    Ok(ai_result) => {
+                        if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&ai_result) {
+                            if let Some(ips) = parsed.get("ip_addresses").and_then(|v| v.as_array()) {
+                                for ip in ips {
+                                    if let Some(s) = ip.as_str() {
+                                        ext_entities.push((EntityType::IpAddress, s.to_string()));
+                                    }
+                                }
+                            }
+                            if let Some(domains) = parsed.get("domains").and_then(|v| v.as_array()) {
+                                for d in domains {
+                                    if let Some(s) = d.as_str() {
+                                        ext_entities.push((EntityType::Domain, s.to_string()));
+                                    }
+                                }
+                            }
+                            if let Some(hashes) = parsed.get("file_hashes").and_then(|v| v.as_array()) {
+                                for h in hashes {
+                                    if let Some(s) = h.as_str() {
+                                        ext_entities.push((EntityType::File, s.to_string()));
+                                    }
+                                }
+                            }
+                            if let Some(processes) = parsed.get("processes").and_then(|v| v.as_array()) {
+                                for p in processes {
+                                    if let Some(s) = p.as_str() {
+                                        ext_entities.push((EntityType::Process, s.to_string()));
+                                    }
+                                }
+                            }
+                            if let Some(mitre) = parsed.get("mitre_techniques").and_then(|v| v.as_array()) {
+                                for t in mitre {
+                                    if let Some(s) = t.as_str() {
+                                        ext_techniques.push(s.to_string());
+                                    }
+                                }
+                            }
+                            tracing::debug!("AI extracted entities from evidence piece");
+                        }
+                    }
+                    Err(err) => {
+                        tracing::warn!("AI entity extraction failed, falling back to regex: {}", err);
+                        let ents = extract_entities_from_content(&e.content);
+                        ext_entities.extend(ents);
+                    }
+                }
+            }
+        } else {
+            let ents = extract_entities_from_content(&e.content);
+            ext_entities.extend(ents);
+        }
+
         evidence_list.push(Evidence::new(incident_id.clone(), e.source, e.content, ct, 0.9));
     }
 
@@ -586,6 +652,76 @@ pub async fn generate_narrative(
         "incident_id": id,
         "narrative": narrative,
     })))
+}
+
+pub async fn generate_report(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<Html<String>, AppError> {
+    if id.is_empty() || id.len() > 128 {
+        return Err(AppError::BadRequest("Invalid incident ID".into()));
+    }
+
+    let incident = if let Some(ref pg) = state.pg_store {
+        match pg.get_incident(&id).await {
+            Ok(Some(i)) => i,
+            _ => {
+                match state.incidents.read() {
+                    Ok(incidents) => match incidents.get(&id) {
+                        Some(i) => i.clone(),
+                        None => return Err(AppError::NotFound("Incident not found".into())),
+                    },
+                    Err(_) => return Err(AppError::LockError),
+                }
+            }
+        }
+    } else {
+        match state.incidents.read() {
+            Ok(incidents) => match incidents.get(&id) {
+                Some(i) => i.clone(),
+                None => return Err(AppError::NotFound("Incident not found".into())),
+            },
+            Err(_) => return Err(AppError::LockError),
+        }
+    };
+
+    let evidence = if let Some(ref pg) = state.pg_store {
+        pg.get_evidence(&id).await.unwrap_or_default()
+    } else {
+        state.evidence.read().map(|m| m.get(&id).cloned().unwrap_or_default()).unwrap_or_default()
+    };
+
+    let entities = if let Some(ref pg) = state.pg_store {
+        pg.get_entities(&id).await.unwrap_or_default()
+    } else {
+        state.entities.read().map(|m| m.get(&id).cloned().unwrap_or_default()).unwrap_or_default()
+    };
+
+    let memory_summary = state.memory.get_memory_by_incident(&id)
+        .ok()
+        .flatten()
+        .map(|m| m.summary);
+
+    let playbook_steps: Vec<String> = if let Ok(decision) = state.decision.evaluate(&evidence) {
+        decision.recommendations.iter().map(|r| r.description.clone()).collect()
+    } else {
+        vec![
+            "Isolate affected systems".into(),
+            "Collect forensic evidence".into(),
+            "Block identified IOCs".into(),
+        ]
+    };
+
+    let html = crate::report::generate_html_report(
+        &incident,
+        &evidence,
+        &entities,
+        memory_summary.as_deref(),
+        None,
+        &playbook_steps,
+    );
+
+    Ok(Html(html))
 }
 
 pub async fn get_graph(

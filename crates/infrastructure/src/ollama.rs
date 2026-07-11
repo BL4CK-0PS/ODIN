@@ -116,4 +116,27 @@ impl OllamaClient {
         );
         self.generate(&prompt, 0.4).await
     }
+
+    pub async fn extract_entities_with_ai(
+        &self,
+        evidence_text: &str,
+        evidence_type: &str,
+    ) -> Result<String, KernelError> {
+        let prompt = format!(
+            "Extract structured entities from this cybersecurity evidence.\n\
+            Evidence type: {}\n\n\
+            Evidence content:\n{}\n\n\
+            Return a JSON object with these arrays:\n\
+            - \"ip_addresses\": list of IP addresses found\n\
+            - \"domains\": list of domains/hostnames found\n\
+            - \"file_hashes\": list of file hashes (MD5/SHA1/SHA256)\n\
+            - \"urls\": list of URLs found\n\
+            - \"mitre_techniques\": list of MITRE ATT&CK technique IDs (T1xxx format)\n\
+            - \"processes\": list of process names or paths\n\
+            - \"malware_families\": list of malware family names if identifiable\n\n\
+            Return ONLY the JSON object, no other text. Use empty arrays for categories with no findings.",
+            evidence_type, evidence_text
+        );
+        self.generate(&prompt, 0.1).await
+    }
 }

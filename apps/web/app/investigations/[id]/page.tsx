@@ -244,6 +244,26 @@ export default function InvestigationPage() {
               ))}
             </div>
           )}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={async () => {
+              try {
+                const html = await api.getReportHtml(id);
+                const blob = new Blob([html], { type: "text/html" });
+                const url = URL.createObjectURL(blob);
+                window.open(url, "_blank");
+              } catch (err) {
+                toast({
+                  title: "Failed to generate report",
+                  description: err instanceof Error ? err.message : undefined,
+                  variant: "error",
+                });
+              }
+            }}
+          >
+            Generate Report
+          </Button>
         </div>
       </div>
 

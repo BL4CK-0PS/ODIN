@@ -34,6 +34,7 @@ pub struct AppState {
     pub qdrant: Option<QdrantClient>,
     pub ollama_client: Option<OllamaClient>,
     pub redis: Option<RedisClient>,
+    #[allow(dead_code)]
     pub infra_config: InfrastructureConfig,
 }
 

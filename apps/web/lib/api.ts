@@ -174,4 +174,25 @@ export const api = {
       memories_consolidated: number;
       ttl_config: Record<string, string>;
     }>("/consolidation/stats"),
+
+  getReportHtml: async (id: string): Promise<string> => {
+    const timeout = DEFAULT_TIMEOUT;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+    try {
+      const res = await fetch(`${BASE}/incidents/${id}/report`, {
+        headers: { "Accept": "text/html" },
+        signal: controller.signal,
+      });
+
+      if (!res.ok) {
+        throw new ApiError(`Report generation failed: ${res.status}`, res.status);
+      }
+
+      return await res.text();
+    } finally {
+      clearTimeout(timeoutId);
+    }
+  },
 };

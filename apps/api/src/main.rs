@@ -1,7 +1,9 @@
 mod error;
+mod report;
 mod response;
 mod routes;
 mod state;
+mod worker;
 
 use axum::{
     routing::{get, post},
@@ -30,27 +32,7 @@ async fn main() {
     state.connect_database().await;
     let state = Arc::new(state);
 
-    let consolidation_state = state.clone();
-    tokio::spawn(async move {
-        let interval = std::time::Duration::from_secs(3600);
-        loop {
-            tokio::time::sleep(interval).await;
-            tracing::info!("Running memory consolidation...");
-            match consolidation_state.memory.run_consolidation() {
-                Ok(report) => {
-                    if !report.is_empty() {
-                        tracing::info!(
-                            "Consolidation complete: {} expired, {} pruned, {} consolidated",
-                            report.expired_count,
-                            report.pruned_version_count,
-                            report.consolidated_memories.len(),
-                        );
-                    }
-                }
-                Err(e) => tracing::error!("Consolidation failed: {}", e),
-            }
-        }
-    });
+    let _worker = worker::BackgroundWorker::spawn(state.clone());
 
     let cors_origins = std::env::var("ODIN_CORS_ORIGINS").unwrap_or_else(|_| "*".to_string());
     let cors_layer = if cors_origins == "*" {
@@ -77,6 +59,7 @@ async fn main() {
         .route("/api/v1/incidents/{id}/playbooks", get(incidents::get_playbooks))
         .route("/api/v1/incidents/{id}/feedback", post(incidents::post_feedback))
         .route("/api/v1/incidents/{id}/narrative", get(incidents::generate_narrative))
+        .route("/api/v1/incidents/{id}/report", get(incidents::generate_report))
         .route("/api/v1/incidents/{id}/status", post(incidents::update_status))
         .route("/api/v1/memories", get(incidents::list_memories))
         .route("/api/v1/search", post(incidents::search_text))

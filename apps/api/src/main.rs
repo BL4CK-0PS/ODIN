@@ -6,11 +6,14 @@ mod state;
 mod worker;
 
 use axum::{
+    middleware,
     routing::{get, post},
     Router,
 };
 use routes::incidents;
+use routes::knowledge;
 use routes::system;
+use routes::auth;
 use state::AppState;
 use std::sync::Arc;
 use tower_http::cors::{CorsLayer, Any};
@@ -45,10 +48,9 @@ async fn main() {
             .allow_headers(Any)
     };
 
-    let app = Router::new()
-        .route("/api/v1/system/health", get(system::health))
-        .route("/api/v1/system/version", get(system::version))
-        .route("/api/v1/system/stats", get(system::stats))
+    let auth_state = odin_core::odin_infrastructure::AuthState::new(state.jwt_service.clone());
+
+    let protected = Router::new()
         .route("/api/v1/incidents", get(incidents::list_incidents))
         .route("/api/v1/incidents/upload", post(incidents::upload))
         .route("/api/v1/incidents/{id}", get(incidents::get_incident))
@@ -57,6 +59,7 @@ async fn main() {
         .route("/api/v1/incidents/{id}/graph", get(incidents::get_graph))
         .route("/api/v1/incidents/{id}/memory", get(incidents::get_memory))
         .route("/api/v1/incidents/{id}/playbooks", get(incidents::get_playbooks))
+        .route("/api/v1/incidents/{id}/predict", get(incidents::predict_next_steps))
         .route("/api/v1/incidents/{id}/feedback", post(incidents::post_feedback))
         .route("/api/v1/incidents/{id}/narrative", get(incidents::generate_narrative))
         .route("/api/v1/incidents/{id}/report", get(incidents::generate_report))
@@ -65,6 +68,27 @@ async fn main() {
         .route("/api/v1/search", post(incidents::search_text))
         .route("/api/v1/graph", get(incidents::get_global_graph))
         .route("/api/v1/consolidation/stats", get(incidents::get_consolidation_stats))
+        .route("/api/v1/knowledge", post(knowledge::create_knowledge_object))
+        .route("/api/v1/knowledge/search", post(knowledge::search_knowledge_objects))
+        .route("/api/v1/knowledge/{id}", get(knowledge::get_knowledge_object))
+        .route("/api/v1/knowledge/{id}", post(knowledge::update_knowledge_object))
+        .route("/api/v1/knowledge/{id}/transition", post(knowledge::transition_knowledge_object))
+        .route("/api/v1/knowledge/{id}/delete", post(knowledge::delete_knowledge_object))
+        .route("/api/v1/knowledge/list", get(knowledge::list_knowledge_objects))
+        .layer(middleware::from_fn_with_state(
+            auth_state.clone(),
+            odin_core::odin_infrastructure::auth_middleware,
+        ))
+        .with_state(state.clone());
+
+    let app = Router::new()
+        .route("/api/v1/auth/login", post(auth::login))
+        .route("/api/v1/auth/audit", get(auth::get_audit_logs))
+        .route("/api/v1/auth/audit/stats", get(auth::get_audit_stats))
+        .route("/api/v1/system/health", get(system::health))
+        .route("/api/v1/system/version", get(system::version))
+        .route("/api/v1/system/stats", get(system::stats))
+        .merge(protected)
         .layer(
             TraceLayer::new_for_http()
                 .make_span_with(tower_http::trace::DefaultMakeSpan::new().include_headers(true))

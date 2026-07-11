@@ -731,6 +731,33 @@ pub async fn get_graph(
     if id.is_empty() || id.len() > 128 {
         return Err(AppError::BadRequest("Invalid incident ID".into()));
     }
+
+    if let Some(ref neo4j) = state.neo4j {
+        match neo4j.get_incident_graph(&id).await {
+            Ok(graph_data) => {
+                let nodes: Vec<serde_json::Value> = graph_data.nodes.iter().map(|n| {
+                    serde_json::json!({
+                        "id": n.id,
+                        "type": n.label.to_lowercase(),
+                        "label": n.properties.get("title").or(n.properties.get("name"))
+                            .and_then(|v| v.as_str()).unwrap_or(&n.id),
+                    })
+                }).collect();
+                let edges: Vec<serde_json::Value> = graph_data.edges.iter().map(|e| {
+                    serde_json::json!({
+                        "source": e.source,
+                        "target": e.target,
+                        "type": e.relationship.to_lowercase(),
+                    })
+                }).collect();
+                return Ok(ApiResponse::ok(serde_json::json!({ "nodes": nodes, "edges": edges })));
+            }
+            Err(e) => {
+                tracing::warn!("Neo4j graph query failed, falling back to in-memory: {}", e);
+            }
+        }
+    }
+
     let mut nodes = Vec::new();
     let mut edges = Vec::new();
 
@@ -796,6 +823,32 @@ pub async fn get_graph(
 pub async fn get_global_graph(
     State(state): State<Arc<AppState>>,
 ) -> Result<(StatusCode, Json<ApiResponse<serde_json::Value>>), AppError> {
+    if let Some(ref neo4j) = state.neo4j {
+        match neo4j.get_global_graph().await {
+            Ok(graph_data) => {
+                let nodes: Vec<serde_json::Value> = graph_data.nodes.iter().map(|n| {
+                    serde_json::json!({
+                        "id": n.id,
+                        "type": n.label.to_lowercase(),
+                        "label": n.properties.get("title").or(n.properties.get("name"))
+                            .and_then(|v| v.as_str()).unwrap_or(&n.id),
+                    })
+                }).collect();
+                let edges: Vec<serde_json::Value> = graph_data.edges.iter().map(|e| {
+                    serde_json::json!({
+                        "source": e.source,
+                        "target": e.target,
+                        "type": e.relationship.to_lowercase(),
+                    })
+                }).collect();
+                return Ok(ApiResponse::ok(serde_json::json!({ "nodes": nodes, "edges": edges })));
+            }
+            Err(e) => {
+                tracing::warn!("Neo4j global graph query failed, falling back: {}", e);
+            }
+        }
+    }
+
     let mut nodes = Vec::new();
     let mut edges = Vec::new();
 
@@ -958,6 +1011,63 @@ pub async fn get_playbooks(
         "playbooks": playbooks,
         "confidence": overall_confidence,
         "recommendation_count": decision.recommendations.len(),
+    })))
+}
+
+pub async fn predict_next_steps(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> Result<(StatusCode, Json<ApiResponse<serde_json::Value>>), AppError> {
+    if id.is_empty() || id.len() > 128 {
+        return Err(AppError::BadRequest("Invalid incident ID".into()));
+    }
+
+    let incident = if let Some(ref pg) = state.pg_store {
+        match pg.get_incident(&id).await {
+            Ok(Some(i)) => i,
+            _ => {
+                match state.incidents.read() {
+                    Ok(incidents) => match incidents.get(&id) {
+                        Some(i) => i.clone(),
+                        None => return Err(AppError::NotFound("Incident not found".into())),
+                    },
+                    Err(_) => return Err(AppError::LockError),
+                }
+            }
+        }
+    } else {
+        match state.incidents.read() {
+            Ok(incidents) => match incidents.get(&id) {
+                Some(i) => i.clone(),
+                None => return Err(AppError::NotFound("Incident not found".into())),
+            },
+            Err(_) => return Err(AppError::LockError),
+        }
+    };
+
+    let evidence = if let Some(ref pg) = state.pg_store {
+        pg.get_evidence(&id).await.unwrap_or_default()
+    } else {
+        state.evidence.read().map(|m| m.get(&id).cloned().unwrap_or_default()).unwrap_or_default()
+    };
+
+    let severity_str = match incident.severity {
+        odin_core::odin_kernel::Severity::Critical => "Critical",
+        odin_core::odin_kernel::Severity::High => "High",
+        odin_core::odin_kernel::Severity::Medium => "Medium",
+        odin_core::odin_kernel::Severity::Low => "Low",
+        odin_core::odin_kernel::Severity::Informational => "Informational",
+    };
+
+    let prediction = odin_core::odin_decision_engine::StepPredictor::predict(
+        &evidence,
+        severity_str,
+        &incident.mitre_techniques,
+    );
+
+    Ok(ApiResponse::ok(serde_json::json!({
+        "incident_id": id,
+        "prediction": prediction,
     })))
 }
 

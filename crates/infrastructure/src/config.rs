@@ -12,6 +12,9 @@ pub struct InfrastructureConfig {
     pub s3_bucket: String,
     pub s3_access_key: String,
     pub s3_secret_key: String,
+    pub neo4j_url: String,
+    pub neo4j_user: String,
+    pub neo4j_password: String,
 }
 
 impl InfrastructureConfig {
@@ -46,6 +49,15 @@ impl InfrastructureConfig {
             ),
             s3_secret_key: env::var("S3_SECRET_KEY").unwrap_or_else(|_|
                 "minioadmin".to_string()
+            ),
+            neo4j_url: env::var("NEO4J_URL").unwrap_or_else(|_|
+                "neo4j://localhost:7687".to_string()
+            ),
+            neo4j_user: env::var("NEO4J_USER").unwrap_or_else(|_|
+                "neo4j".to_string()
+            ),
+            neo4j_password: env::var("NEO4J_PASSWORD").unwrap_or_else(|_|
+                "odin".to_string()
             ),
         }
     }

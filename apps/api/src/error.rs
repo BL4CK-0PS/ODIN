@@ -6,6 +6,9 @@ use axum::Json;
 pub enum AppError {
     BadRequest(String),
     NotFound(String),
+    Unauthorized(String),
+    #[allow(dead_code)]
+    Forbidden(String),
     Internal(String),
     LockError,
 }
@@ -15,6 +18,8 @@ impl IntoResponse for AppError {
         let (status, msg) = match self {
             AppError::BadRequest(m) => (StatusCode::BAD_REQUEST, m),
             AppError::NotFound(m) => (StatusCode::NOT_FOUND, m),
+            AppError::Unauthorized(m) => (StatusCode::UNAUTHORIZED, m),
+            AppError::Forbidden(m) => (StatusCode::FORBIDDEN, m),
             AppError::Internal(m) => (StatusCode::INTERNAL_SERVER_ERROR, m),
             AppError::LockError => {
                 tracing::error!("Internal lock contention");

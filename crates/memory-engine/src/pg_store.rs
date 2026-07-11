@@ -1,6 +1,6 @@
 use crate::store::MemoryStore;
 use crate::version::MemoryVersion;
-use odin_kernel::{CanonicalIncident, Entity, Evidence, KernelError, MemoryObject};
+use odin_kernel::{CanonicalIncident, Entity, Evidence, KernelError, KnowledgeObject, KnowledgeStatus, KnowledgeType, MemoryObject};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{PgPool, Row};
 
@@ -25,6 +25,13 @@ impl PgStore {
             .execute(&self.pool)
             .await
             .map_err(|e| KernelError::Internal(format!("Migration failed: {}", e)))?;
+
+        let sql2 = include_str!("../migrations/002_knowledge_objects.sql");
+        sqlx::query(sql2)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| KernelError::Internal(format!("Migration 2 failed: {}", e)))?;
+
         tracing::info!("Database migrations applied");
         Ok(())
     }
@@ -577,6 +584,155 @@ impl MemoryStore for PgStore {
     }
 }
 
+impl PgStore {
+    pub async fn save_knowledge_object(&self, obj: &KnowledgeObject) -> Result<(), KernelError> {
+        sqlx::query(
+            r#"INSERT INTO knowledge_objects (id, title, description, content, object_type, status, tags, source_incidents, mitre_techniques, confidence_sources, created_by, updated_by, created_at, updated_at, status_history, expires_at, review_notes)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+               ON CONFLICT (id) DO UPDATE SET
+               title = EXCLUDED.title, description = EXCLUDED.description,
+               content = EXCLUDED.content, status = EXCLUDED.status,
+               tags = EXCLUDED.tags, mitre_techniques = EXCLUDED.mitre_techniques,
+               updated_by = EXCLUDED.updated_by, updated_at = EXCLUDED.updated_at,
+               status_history = EXCLUDED.status_history, review_notes = EXCLUDED.review_notes"#,
+        )
+        .bind(&obj.id)
+        .bind(&obj.title)
+        .bind(&obj.description)
+        .bind(&obj.content)
+        .bind(format!("{:?}", obj.object_type))
+        .bind(format!("{:?}", obj.status))
+        .bind(&obj.tags)
+        .bind(&obj.source_incidents)
+        .bind(&obj.mitre_techniques)
+        .bind(serde_json::to_value(&obj.confidence_sources).unwrap_or_default())
+        .bind(&obj.created_by)
+        .bind(&obj.updated_by)
+        .bind(obj.created_at)
+        .bind(obj.updated_at)
+        .bind(serde_json::to_value(&obj.status_history).unwrap_or_default())
+        .bind(obj.expires_at)
+        .bind(&obj.review_notes)
+        .execute(&self.pool)
+        .await
+        .map_err(|e| KernelError::Internal(format!("Save knowledge object failed: {}", e)))?;
+        Ok(())
+    }
+
+    pub async fn get_knowledge_object(&self, id: &str) -> Result<Option<KnowledgeObject>, KernelError> {
+        let row = sqlx::query("SELECT * FROM knowledge_objects WHERE id = $1")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| KernelError::Internal(format!("Get knowledge object failed: {}", e)))?;
+
+        Ok(row.map(|r| KnowledgeObject {
+            id: r.get("id"),
+            title: r.get("title"),
+            description: r.get("description"),
+            content: r.get("content"),
+            object_type: parse_knowledge_type(&r.get::<String, _>("object_type")),
+            status: parse_knowledge_status(&r.get::<String, _>("status")),
+            tags: r.get("tags"),
+            source_incidents: r.get("source_incidents"),
+            mitre_techniques: r.get("mitre_techniques"),
+            confidence_sources: serde_json::from_value(r.get("confidence_sources")).unwrap_or_default(),
+            created_by: r.get("created_by"),
+            updated_by: r.get("updated_by"),
+            created_at: r.get("created_at"),
+            updated_at: r.get("updated_at"),
+            status_history: serde_json::from_value(r.get("status_history")).unwrap_or_default(),
+            expires_at: r.get("expires_at"),
+            review_notes: r.get("review_notes"),
+        }))
+    }
+
+    pub async fn list_knowledge_objects(
+        &self,
+        status_filter: Option<&str>,
+        type_filter: Option<&str>,
+        limit: usize,
+        offset: usize,
+    ) -> Result<Vec<KnowledgeObject>, KernelError> {
+        let mut query = String::from("SELECT * FROM knowledge_objects WHERE 1=1");
+        if let Some(s) = status_filter {
+            query.push_str(&format!(" AND status = '{}'", s));
+        }
+        if let Some(t) = type_filter {
+            query.push_str(&format!(" AND object_type = '{}'", t));
+        }
+        query.push_str(&format!(" ORDER BY updated_at DESC LIMIT {} OFFSET {}", limit, offset));
+
+        let rows = sqlx::query(&query)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| KernelError::Internal(format!("List knowledge objects failed: {}", e)))?;
+
+        Ok(rows.into_iter().map(|r| KnowledgeObject {
+            id: r.get("id"),
+            title: r.get("title"),
+            description: r.get("description"),
+            content: r.get("content"),
+            object_type: parse_knowledge_type(&r.get::<String, _>("object_type")),
+            status: parse_knowledge_status(&r.get::<String, _>("status")),
+            tags: r.get("tags"),
+            source_incidents: r.get("source_incidents"),
+            mitre_techniques: r.get("mitre_techniques"),
+            confidence_sources: serde_json::from_value(r.get("confidence_sources")).unwrap_or_default(),
+            created_by: r.get("created_by"),
+            updated_by: r.get("updated_by"),
+            created_at: r.get("created_at"),
+            updated_at: r.get("updated_at"),
+            status_history: serde_json::from_value(r.get("status_history")).unwrap_or_default(),
+            expires_at: r.get("expires_at"),
+            review_notes: r.get("review_notes"),
+        }).collect())
+    }
+
+    pub async fn delete_knowledge_object(&self, id: &str) -> Result<(), KernelError> {
+        sqlx::query("DELETE FROM knowledge_objects WHERE id = $1")
+            .bind(id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| KernelError::Internal(format!("Delete knowledge object failed: {}", e)))?;
+        Ok(())
+    }
+
+    pub async fn search_knowledge_objects(&self, query_text: &str, limit: usize) -> Result<Vec<KnowledgeObject>, KernelError> {
+        let rows = sqlx::query(
+            r#"SELECT * FROM knowledge_objects
+               WHERE title ILIKE $1 OR description ILIKE $1 OR content ILIKE $1
+               AND status != 'Purged'
+               ORDER BY updated_at DESC LIMIT $2"#,
+        )
+        .bind(format!("%{}%", query_text))
+        .bind(limit as i64)
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| KernelError::Internal(format!("Search knowledge objects failed: {}", e)))?;
+
+        Ok(rows.into_iter().map(|r| KnowledgeObject {
+            id: r.get("id"),
+            title: r.get("title"),
+            description: r.get("description"),
+            content: r.get("content"),
+            object_type: parse_knowledge_type(&r.get::<String, _>("object_type")),
+            status: parse_knowledge_status(&r.get::<String, _>("status")),
+            tags: r.get("tags"),
+            source_incidents: r.get("source_incidents"),
+            mitre_techniques: r.get("mitre_techniques"),
+            confidence_sources: serde_json::from_value(r.get("confidence_sources")).unwrap_or_default(),
+            created_by: r.get("created_by"),
+            updated_by: r.get("updated_by"),
+            created_at: r.get("created_at"),
+            updated_at: r.get("updated_at"),
+            status_history: serde_json::from_value(r.get("status_history")).unwrap_or_default(),
+            expires_at: r.get("expires_at"),
+            review_notes: r.get("review_notes"),
+        }).collect())
+    }
+}
+
 fn parse_severity(s: &str) -> odin_kernel::Severity {
     match s {
         "Critical" => odin_kernel::Severity::Critical,
@@ -596,5 +752,29 @@ fn parse_status(s: &str) -> odin_kernel::IncidentStatus {
         "Recovered" => odin_kernel::IncidentStatus::Recovered,
         "Closed" => odin_kernel::IncidentStatus::Closed,
         _ => odin_kernel::IncidentStatus::New,
+    }
+}
+
+fn parse_knowledge_status(s: &str) -> KnowledgeStatus {
+    match s {
+        "Draft" => KnowledgeStatus::Draft,
+        "Review" => KnowledgeStatus::Review,
+        "Active" => KnowledgeStatus::Active,
+        "Deprecated" => KnowledgeStatus::Deprecated,
+        "Archived" => KnowledgeStatus::Archived,
+        "Purged" => KnowledgeStatus::Purged,
+        _ => KnowledgeStatus::Draft,
+    }
+}
+
+fn parse_knowledge_type(s: &str) -> KnowledgeType {
+    match s {
+        "Playbook" => KnowledgeType::Playbook,
+        "ThreatIntel" => KnowledgeType::ThreatIntel,
+        "MitreMapping" => KnowledgeType::MitreMapping,
+        "IocDefinition" => KnowledgeType::IocDefinition,
+        "ResponseProcedure" => KnowledgeType::ResponseProcedure,
+        "Policy" => KnowledgeType::Policy,
+        other => KnowledgeType::Custom(other.to_string()),
     }
 }

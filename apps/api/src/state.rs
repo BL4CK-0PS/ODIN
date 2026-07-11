@@ -6,7 +6,7 @@ use odin_core::odin_intelligence_engine::{IntelligenceEngine, OllamaPipeline};
 use odin_core::odin_retrieval_engine::{RetrievalEngine, QdrantClient};
 use odin_core::odin_decision_engine::DecisionEngine;
 use odin_core::odin_policy_gate::PolicyGate;
-use odin_core::odin_infrastructure::{InfrastructureConfig, OllamaClient, RedisClient};
+use odin_core::odin_infrastructure::{InfrastructureConfig, OllamaClient, RedisClient, Neo4jClient, JwtService, AuditLogger};
 
 pub type IncidentMap = Arc<RwLock<HashMap<String, CanonicalIncident>>>;
 pub type EvidenceMap = Arc<RwLock<HashMap<String, Vec<Evidence>>>>;
@@ -34,6 +34,9 @@ pub struct AppState {
     pub qdrant: Option<QdrantClient>,
     pub ollama_client: Option<OllamaClient>,
     pub redis: Option<RedisClient>,
+    pub neo4j: Option<Neo4jClient>,
+    pub jwt_service: JwtService,
+    pub audit_logger: AuditLogger,
     #[allow(dead_code)]
     pub infra_config: InfrastructureConfig,
 }
@@ -73,6 +76,9 @@ impl AppState {
             qdrant,
             ollama_client,
             redis: None,
+            neo4j: None,
+            jwt_service: JwtService::new("odin-secret-key-change-in-production"),
+            audit_logger: AuditLogger::new(10000),
             infra_config: config,
         }
     }
@@ -145,6 +151,16 @@ impl AppState {
             }
             Err(e) => {
                 tracing::warn!("Redis not available: {}", e);
+            }
+        }
+
+        match Neo4jClient::new(&config.neo4j_url, &config.neo4j_user, &config.neo4j_password).await {
+            Ok(client) => {
+                self.neo4j = Some(client);
+                tracing::info!("Neo4j connected");
+            }
+            Err(e) => {
+                tracing::warn!("Neo4j not available, using in-memory graph: {}", e);
             }
         }
     }

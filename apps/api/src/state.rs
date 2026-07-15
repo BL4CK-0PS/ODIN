@@ -77,7 +77,12 @@ impl AppState {
             ollama_client,
             redis: None,
             neo4j: None,
-            jwt_service: JwtService::new("odin-secret-key-change-in-production"),
+            jwt_service: JwtService::new(
+                &std::env::var("JWT_SECRET").unwrap_or_else(|_| {
+                    tracing::warn!("JWT_SECRET not set, using default (change in production!)");
+                    "odin-dev-secret-do-not-use-in-production".to_string()
+                })
+            ),
             audit_logger: AuditLogger::new(10000),
             infra_config: config,
         }

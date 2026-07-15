@@ -1,0 +1,12 @@
+apiVersion: 1
+
+providers:
+  - name: "ODIN Dashboards"
+    orgId: 1
+    folder: "ODIN"
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

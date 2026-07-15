@@ -32,7 +32,12 @@ pub async fn login(
         return Err(AppError::BadRequest("Username and password required".into()));
     }
 
-    if req.password != "password" {
+    let valid_password = std::env::var("ODIN_ADMIN_PASSWORD").unwrap_or_else(|_| {
+        tracing::warn!("ODIN_ADMIN_PASSWORD not set, using default (change in production!)");
+        "odin-dev-password".to_string()
+    });
+
+    if req.password != valid_password {
         state.audit_logger.log(odin_core::odin_infrastructure::AuditEntry {
             id: uuid::Uuid::new_v4().to_string(),
             timestamp: chrono::Utc::now(),

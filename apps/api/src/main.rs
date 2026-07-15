@@ -12,6 +12,7 @@ use axum::{
 };
 use routes::incidents;
 use routes::knowledge;
+use routes::metrics;
 use routes::system;
 use routes::auth;
 use state::AppState;
@@ -88,6 +89,7 @@ async fn main() {
         .route("/api/v1/system/health", get(system::health))
         .route("/api/v1/system/version", get(system::version))
         .route("/api/v1/system/stats", get(system::stats))
+        .route("/metrics", get(metrics::metrics))
         .merge(protected)
         .layer(
             TraceLayer::new_for_http()

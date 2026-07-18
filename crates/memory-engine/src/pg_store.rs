@@ -1,6 +1,9 @@
 use crate::store::MemoryStore;
 use crate::version::MemoryVersion;
-use odin_kernel::{CanonicalIncident, Entity, Evidence, KernelError, KnowledgeObject, KnowledgeStatus, KnowledgeType, MemoryObject};
+use odin_kernel::{
+    CanonicalIncident, Entity, Evidence, KernelError, KnowledgeObject, KnowledgeStatus,
+    KnowledgeType, MemoryObject,
+};
 use sqlx::postgres::PgPoolOptions;
 use sqlx::{PgPool, Row};
 
@@ -162,10 +165,7 @@ impl PgStore {
         Ok(())
     }
 
-    pub async fn get_evidence(
-        &self,
-        incident_id: &str,
-    ) -> Result<Vec<Evidence>, KernelError> {
+    pub async fn get_evidence(&self, incident_id: &str) -> Result<Vec<Evidence>, KernelError> {
         let rows = sqlx::query(
             r#"SELECT id, incident_id, source, content, content_type, trust_score, collected_at, created_at
                FROM evidence WHERE incident_id = $1 ORDER BY collected_at"#,
@@ -260,17 +260,17 @@ impl PgStore {
         .await
         .map_err(|e| KernelError::Internal(format!("Get feedback failed: {}", e)))?;
 
-        Ok(rows.iter().map(|r| {
-            let feedback: String = r.get("feedback");
-            let rating: i32 = r.get("rating");
-            (feedback, rating)
-        }).collect())
+        Ok(rows
+            .iter()
+            .map(|r| {
+                let feedback: String = r.get("feedback");
+                let rating: i32 = r.get("rating");
+                (feedback, rating)
+            })
+            .collect())
     }
 
-    pub async fn get_average_rating(
-        &self,
-        incident_id: &str,
-    ) -> Result<Option<f64>, KernelError> {
+    pub async fn get_average_rating(&self, incident_id: &str) -> Result<Option<f64>, KernelError> {
         let row = sqlx::query_scalar::<_, Option<f64>>(
             r#"SELECT AVG(rating::float) FROM feedback WHERE incident_id = $1"#,
         )
@@ -281,10 +281,7 @@ impl PgStore {
         Ok(row.flatten())
     }
 
-    pub async fn get_entities(
-        &self,
-        incident_id: &str,
-    ) -> Result<Vec<Entity>, KernelError> {
+    pub async fn get_entities(&self, incident_id: &str) -> Result<Vec<Entity>, KernelError> {
         let rows = sqlx::query(
             r#"SELECT id, incident_id, name, entity_type, metadata, created_at
                FROM entities WHERE incident_id = $1"#,
@@ -314,14 +311,12 @@ impl PgStore {
         incident_id: &str,
         status: &str,
     ) -> Result<(), KernelError> {
-        sqlx::query(
-            r#"UPDATE incidents SET status = $1, updated_at = NOW() WHERE id = $2"#,
-        )
-        .bind(status)
-        .bind(incident_id)
-        .execute(&self.pool)
-        .await
-        .map_err(|e| KernelError::Internal(format!("Update status failed: {}", e)))?;
+        sqlx::query(r#"UPDATE incidents SET status = $1, updated_at = NOW() WHERE id = $2"#)
+            .bind(status)
+            .bind(incident_id)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| KernelError::Internal(format!("Update status failed: {}", e)))?;
         Ok(())
     }
 
@@ -619,7 +614,10 @@ impl PgStore {
         Ok(())
     }
 
-    pub async fn get_knowledge_object(&self, id: &str) -> Result<Option<KnowledgeObject>, KernelError> {
+    pub async fn get_knowledge_object(
+        &self,
+        id: &str,
+    ) -> Result<Option<KnowledgeObject>, KernelError> {
         let row = sqlx::query("SELECT * FROM knowledge_objects WHERE id = $1")
             .bind(id)
             .fetch_optional(&self.pool)
@@ -636,7 +634,8 @@ impl PgStore {
             tags: r.get("tags"),
             source_incidents: r.get("source_incidents"),
             mitre_techniques: r.get("mitre_techniques"),
-            confidence_sources: serde_json::from_value(r.get("confidence_sources")).unwrap_or_default(),
+            confidence_sources: serde_json::from_value(r.get("confidence_sources"))
+                .unwrap_or_default(),
             created_by: r.get("created_by"),
             updated_by: r.get("updated_by"),
             created_at: r.get("created_at"),
@@ -661,32 +660,39 @@ impl PgStore {
         if let Some(t) = type_filter {
             query.push_str(&format!(" AND object_type = '{}'", t));
         }
-        query.push_str(&format!(" ORDER BY updated_at DESC LIMIT {} OFFSET {}", limit, offset));
+        query.push_str(&format!(
+            " ORDER BY updated_at DESC LIMIT {} OFFSET {}",
+            limit, offset
+        ));
 
         let rows = sqlx::query(&query)
             .fetch_all(&self.pool)
             .await
             .map_err(|e| KernelError::Internal(format!("List knowledge objects failed: {}", e)))?;
 
-        Ok(rows.into_iter().map(|r| KnowledgeObject {
-            id: r.get("id"),
-            title: r.get("title"),
-            description: r.get("description"),
-            content: r.get("content"),
-            object_type: parse_knowledge_type(&r.get::<String, _>("object_type")),
-            status: parse_knowledge_status(&r.get::<String, _>("status")),
-            tags: r.get("tags"),
-            source_incidents: r.get("source_incidents"),
-            mitre_techniques: r.get("mitre_techniques"),
-            confidence_sources: serde_json::from_value(r.get("confidence_sources")).unwrap_or_default(),
-            created_by: r.get("created_by"),
-            updated_by: r.get("updated_by"),
-            created_at: r.get("created_at"),
-            updated_at: r.get("updated_at"),
-            status_history: serde_json::from_value(r.get("status_history")).unwrap_or_default(),
-            expires_at: r.get("expires_at"),
-            review_notes: r.get("review_notes"),
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|r| KnowledgeObject {
+                id: r.get("id"),
+                title: r.get("title"),
+                description: r.get("description"),
+                content: r.get("content"),
+                object_type: parse_knowledge_type(&r.get::<String, _>("object_type")),
+                status: parse_knowledge_status(&r.get::<String, _>("status")),
+                tags: r.get("tags"),
+                source_incidents: r.get("source_incidents"),
+                mitre_techniques: r.get("mitre_techniques"),
+                confidence_sources: serde_json::from_value(r.get("confidence_sources"))
+                    .unwrap_or_default(),
+                created_by: r.get("created_by"),
+                updated_by: r.get("updated_by"),
+                created_at: r.get("created_at"),
+                updated_at: r.get("updated_at"),
+                status_history: serde_json::from_value(r.get("status_history")).unwrap_or_default(),
+                expires_at: r.get("expires_at"),
+                review_notes: r.get("review_notes"),
+            })
+            .collect())
     }
 
     pub async fn delete_knowledge_object(&self, id: &str) -> Result<(), KernelError> {
@@ -698,7 +704,11 @@ impl PgStore {
         Ok(())
     }
 
-    pub async fn search_knowledge_objects(&self, query_text: &str, limit: usize) -> Result<Vec<KnowledgeObject>, KernelError> {
+    pub async fn search_knowledge_objects(
+        &self,
+        query_text: &str,
+        limit: usize,
+    ) -> Result<Vec<KnowledgeObject>, KernelError> {
         let rows = sqlx::query(
             r#"SELECT * FROM knowledge_objects
                WHERE title ILIKE $1 OR description ILIKE $1 OR content ILIKE $1
@@ -711,25 +721,29 @@ impl PgStore {
         .await
         .map_err(|e| KernelError::Internal(format!("Search knowledge objects failed: {}", e)))?;
 
-        Ok(rows.into_iter().map(|r| KnowledgeObject {
-            id: r.get("id"),
-            title: r.get("title"),
-            description: r.get("description"),
-            content: r.get("content"),
-            object_type: parse_knowledge_type(&r.get::<String, _>("object_type")),
-            status: parse_knowledge_status(&r.get::<String, _>("status")),
-            tags: r.get("tags"),
-            source_incidents: r.get("source_incidents"),
-            mitre_techniques: r.get("mitre_techniques"),
-            confidence_sources: serde_json::from_value(r.get("confidence_sources")).unwrap_or_default(),
-            created_by: r.get("created_by"),
-            updated_by: r.get("updated_by"),
-            created_at: r.get("created_at"),
-            updated_at: r.get("updated_at"),
-            status_history: serde_json::from_value(r.get("status_history")).unwrap_or_default(),
-            expires_at: r.get("expires_at"),
-            review_notes: r.get("review_notes"),
-        }).collect())
+        Ok(rows
+            .into_iter()
+            .map(|r| KnowledgeObject {
+                id: r.get("id"),
+                title: r.get("title"),
+                description: r.get("description"),
+                content: r.get("content"),
+                object_type: parse_knowledge_type(&r.get::<String, _>("object_type")),
+                status: parse_knowledge_status(&r.get::<String, _>("status")),
+                tags: r.get("tags"),
+                source_incidents: r.get("source_incidents"),
+                mitre_techniques: r.get("mitre_techniques"),
+                confidence_sources: serde_json::from_value(r.get("confidence_sources"))
+                    .unwrap_or_default(),
+                created_by: r.get("created_by"),
+                updated_by: r.get("updated_by"),
+                created_at: r.get("created_at"),
+                updated_at: r.get("updated_at"),
+                status_history: serde_json::from_value(r.get("status_history")).unwrap_or_default(),
+                expires_at: r.get("expires_at"),
+                review_notes: r.get("review_notes"),
+            })
+            .collect())
     }
 }
 

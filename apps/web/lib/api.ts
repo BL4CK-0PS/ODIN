@@ -1,7 +1,9 @@
 import type { ApiResponse, CanonicalIncident, RankedResult, MemoryObject } from "./types";
 import type { GraphData } from "@/stores/graph";
+import { mockIncidents, getMockIncident, getMockMemory, getMockGraph, getMockSimilarResults } from "./mock-data";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3000/api/v1";
+const USE_MOCKS = process.env.NEXT_PUBLIC_USE_MOCKS === "true";
 const DEFAULT_TIMEOUT = 30_000;
 const MAX_RETRIES = 3;
 const BASE_DELAY = 500;
@@ -172,6 +174,8 @@ export const api = {
       expired_purged: number;
       versions_pruned: number;
       memories_consolidated: number;
+      consolidation_runs: number;
+      last_consolidation: string | null;
       ttl_config: Record<string, string>;
     }>("/consolidation/stats"),
 
@@ -196,3 +200,69 @@ export const api = {
     }
   },
 };
+
+export const mockApi = {
+  health: () => Promise.resolve({ status: "ok", version: "0.1.0" }),
+
+  uploadIncident: (body: {
+    title: string;
+    description: string;
+    severity: string;
+    evidence: { source: string; content: string; content_type: string }[];
+  }) =>
+    Promise.resolve({
+      id: `inc-${Date.now()}`,
+      title: body.title,
+      severity: body.severity,
+      status: "New",
+      evidence_count: body.evidence.length,
+      entity_count: 0,
+    }),
+
+  getIncident: (id: string) => {
+    const inc = getMockIncident(id);
+    return inc ? Promise.resolve(inc) : Promise.reject(new ApiError("Not found", 404));
+  },
+
+  getTimeline: (id: string) =>
+    Promise.resolve({ incident_id: id, events: [] }),
+
+  getMemory: (id: string) =>
+    Promise.resolve(getMockMemory(id)),
+
+  getGraph: (id: string) =>
+    Promise.resolve(getMockGraph(id)),
+
+  getGlobalGraph: () =>
+    Promise.resolve(getMockGraph(mockIncidents[0]?.id || "inc-001")),
+
+  getPlaybooks: (id: string) =>
+    Promise.resolve({ incident_id: id, playbooks: [] }),
+
+  searchSimilar: (incident_id: string, top_k = 5) =>
+    Promise.resolve({
+      results: getMockSimilarResults(incident_id).slice(0, top_k),
+    }),
+
+  postFeedback: (_id: string, _feedback: string, _rating: number) =>
+    Promise.resolve("Feedback recorded"),
+
+  updateStatus: (id: string, status: string) =>
+    Promise.resolve({ incident_id: id, old_status: "New", new_status: status }),
+
+  getConsolidationStats: () =>
+    Promise.resolve({
+      total_memories: 11,
+      expired_purged: 0,
+      versions_pruned: 0,
+      memories_consolidated: 0,
+      consolidation_runs: 5,
+      last_consolidation: new Date(Date.now() - 3600_000).toISOString(),
+      ttl_config: { critical: "365 days", high: "180 days", medium: "90 days", low: "30 days" },
+    }),
+
+  getReportHtml: (_id: string) =>
+    Promise.resolve("<html><body><h1>Mock Report</h1></body></html>"),
+};
+
+export const clientApi = USE_MOCKS ? mockApi : api;

@@ -1,4 +1,6 @@
-use odin_core::odin_kernel::{CanonicalIncident, Evidence, Entity, EntityType, Severity, IncidentStatus};
+use odin_core::odin_kernel::{
+    CanonicalIncident, Entity, EntityType, Evidence, IncidentStatus, Severity,
+};
 
 fn severity_color(s: &Severity) -> &'static str {
     match s {
@@ -65,50 +67,80 @@ pub fn generate_html_report(
     narrative: Option<&str>,
     playbook_steps: &[String],
 ) -> String {
-    let evidence_rows: String = evidence.iter().enumerate().map(|(i, ev)| {
-        format!(
-            r#"<tr>
+    let evidence_rows: String = evidence
+        .iter()
+        .enumerate()
+        .map(|(i, ev)| {
+            format!(
+                r#"<tr>
                 <td>{}</td>
                 <td>{}</td>
                 <td><code>{}</code></td>
                 <td>{:.0}%</td>
                 <td>{}</td>
             </tr>"#,
-            i + 1,
-            html_escape(&ev.source),
-            html_escape(&format!("{:?}", ev.content_type)),
-            ev.trust_score * 100.0,
-            ev.collected_at.format("%Y-%m-%d %H:%M UTC"),
-        )
-    }).collect::<Vec<_>>().join("\n");
+                i + 1,
+                html_escape(&ev.source),
+                html_escape(&format!("{:?}", ev.content_type)),
+                ev.trust_score * 100.0,
+                ev.collected_at.format("%Y-%m-%d %H:%M UTC"),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
 
-    let entity_rows: String = entities.iter().enumerate().map(|(i, ent)| {
-        format!(
-            r#"<tr>
+    let entity_rows: String = entities
+        .iter()
+        .enumerate()
+        .map(|(i, ent)| {
+            format!(
+                r#"<tr>
                 <td>{}</td>
                 <td><span class="badge badge-type">{}</span></td>
                 <td><code>{}</code></td>
             </tr>"#,
-            i + 1,
-            entity_type_label(&ent.entity_type),
-            html_escape(&ent.name),
-        )
-    }).collect::<Vec<_>>().join("\n");
+                i + 1,
+                entity_type_label(&ent.entity_type),
+                html_escape(&ent.name),
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
 
-    let tech_badges: String = incident.mitre_techniques.iter().map(|t| {
-        format!(r#"<span class="badge badge-tech">{}</span>"#, html_escape(t))
-    }).collect::<Vec<_>>().join(" ");
+    let tech_badges: String = incident
+        .mitre_techniques
+        .iter()
+        .map(|t| {
+            format!(
+                r#"<span class="badge badge-tech">{}</span>"#,
+                html_escape(t)
+            )
+        })
+        .collect::<Vec<_>>()
+        .join(" ");
 
-    let tag_badges: String = incident.tags.iter().map(|t| {
-        format!(r#"<span class="badge badge-tag">{}</span>"#, html_escape(t))
-    }).collect::<Vec<_>>().join(" ");
+    let tag_badges: String = incident
+        .tags
+        .iter()
+        .map(|t| format!(r#"<span class="badge badge-tag">{}</span>"#, html_escape(t)))
+        .collect::<Vec<_>>()
+        .join(" ");
 
     let playbook_html: String = if playbook_steps.is_empty() {
         "<p class=\"muted\">No playbook generated.</p>".to_string()
     } else {
-        let items: String = playbook_steps.iter().enumerate().map(|(i, step)| {
-            format!("<li><strong>{}</strong> — {}</li>", i + 1, html_escape(step))
-        }).collect::<Vec<_>>().join("\n");
+        let items: String = playbook_steps
+            .iter()
+            .enumerate()
+            .map(|(i, step)| {
+                format!(
+                    "<li><strong>{}</strong> — {}</li>",
+                    i + 1,
+                    html_escape(step)
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
         format!("<ol class=\"playbook-list\">{}</ol>", items)
     };
 
@@ -116,9 +148,14 @@ pub fn generate_html_report(
         format!(r#"<div class="section"><h2>Attack Narrative</h2><p class="narrative">{}</p></div>"#, html_escape(n))
     }).unwrap_or_default();
 
-    let memory_html = memory_summary.map(|m| {
-        format!(r#"<div class="section"><h2>Threat Memory Summary</h2><p>{}</p></div>"#, html_escape(m))
-    }).unwrap_or_default();
+    let memory_html = memory_summary
+        .map(|m| {
+            format!(
+                r#"<div class="section"><h2>Threat Memory Summary</h2><p>{}</p></div>"#,
+                html_escape(m)
+            )
+        })
+        .unwrap_or_default();
 
     format!(
         r#"<!DOCTYPE html>
@@ -242,8 +279,16 @@ pub fn generate_html_report(
         created = incident.created_at.format("%Y-%m-%d %H:%M UTC"),
         updated = incident.updated_at.format("%Y-%m-%d %H:%M UTC"),
         description = html_escape(&incident.description),
-        techs = if tech_badges.is_empty() { "<span class=\"muted\">None mapped</span>".to_string() } else { tech_badges },
-        tags = if tag_badges.is_empty() { "<span class=\"muted\">None</span>".to_string() } else { tag_badges },
+        techs = if tech_badges.is_empty() {
+            "<span class=\"muted\">None mapped</span>".to_string()
+        } else {
+            tech_badges
+        },
+        tags = if tag_badges.is_empty() {
+            "<span class=\"muted\">None</span>".to_string()
+        } else {
+            tag_badges
+        },
         narrative = narrative_html,
         memory = memory_html,
         evidence_count = evidence.len(),
@@ -259,8 +304,8 @@ pub fn generate_html_report(
 
 fn html_escape(s: &str) -> String {
     s.replace('&', "&amp;")
-     .replace('<', "&lt;")
-     .replace('>', "&gt;")
-     .replace('"', "&quot;")
-     .replace('\'', "&#39;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+        .replace('\'', "&#39;")
 }

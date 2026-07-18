@@ -1,11 +1,11 @@
 pub mod engine;
-pub mod similarity;
-pub mod ranking;
 pub mod qdrant;
+pub mod ranking;
 pub mod rl_feedback;
+pub mod similarity;
 
 pub use engine::RetrievalEngine;
-pub use similarity::{StructuralScorer, SemanticScorer, HybridScore};
-pub use ranking::{RankedResult, Ranker};
 pub use qdrant::QdrantClient;
-pub use rl_feedback::{RLFeedbackLoop, RLStats, Experience};
+pub use ranking::{RankedResult, Ranker};
+pub use rl_feedback::{Experience, RLFeedbackLoop, RLStats};
+pub use similarity::{HybridScore, SemanticScorer, StructuralScorer};

@@ -45,3 +45,39 @@ impl Policy {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn policy_allows_high_confidence() {
+        let p = Policy::new("test".into(), "desc".into(), 0.7);
+        let result = p.evaluate(0.8);
+        assert!(matches!(result.verdict, PolicyVerdict::Allow));
+    }
+
+    #[test]
+    fn policy_denies_low_confidence() {
+        let p = Policy::new("test".into(), "desc".into(), 0.7);
+        let result = p.evaluate(0.3);
+        match result.verdict {
+            PolicyVerdict::Deny(msg) => assert!(msg.contains("0.30")),
+            _ => panic!("expected Deny"),
+        }
+    }
+
+    #[test]
+    fn policy_exactly_at_threshold_is_allow() {
+        let p = Policy::new("test".into(), "desc".into(), 0.7);
+        assert!(matches!(p.evaluate(0.7).verdict, PolicyVerdict::Allow));
+    }
+
+    #[test]
+    fn policy_result_serialization() {
+        let p = Policy::new("n".into(), "d".into(), 0.5);
+        let result = p.evaluate(0.6);
+        let json = serde_json::to_string(&result).unwrap();
+        let _: PolicyResult = serde_json::from_str(&json).unwrap();
+    }
+}

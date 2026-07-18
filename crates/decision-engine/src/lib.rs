@@ -3,5 +3,5 @@ pub mod prediction;
 pub mod recommendation;
 
 pub use engine::DecisionEngine;
-pub use prediction::{StepPredictor, PredictionResult, NextStep, StepType, RiskLevel};
-pub use recommendation::{Recommendation, RecommendationKind, Decision};
+pub use prediction::{NextStep, PredictionResult, RiskLevel, StepPredictor, StepType};
+pub use recommendation::{Decision, Recommendation, RecommendationKind};

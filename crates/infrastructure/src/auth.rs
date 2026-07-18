@@ -28,13 +28,8 @@ impl Role {
                 Permission::ViewAuditLogs,
                 Permission::ExportData,
             ],
-            Role::Viewer => vec![
-                Permission::ReadIncidents,
-                Permission::ViewAuditLogs,
-            ],
-            Role::ReadOnly => vec![
-                Permission::ReadIncidents,
-            ],
+            Role::Viewer => vec![Permission::ReadIncidents, Permission::ViewAuditLogs],
+            Role::ReadOnly => vec![Permission::ReadIncidents],
         }
     }
 
@@ -80,7 +75,9 @@ impl User {
     }
 
     pub fn has_permission(&self, permission: &Permission) -> bool {
-        self.roles.iter().any(|role| role.has_permission(permission))
+        self.roles
+            .iter()
+            .any(|role| role.has_permission(permission))
     }
 
     pub fn has_role(&self, role: &Role) -> bool {

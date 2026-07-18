@@ -62,6 +62,8 @@ pub struct ConsolidationReport {
 
 impl ConsolidationReport {
     pub fn is_empty(&self) -> bool {
-        self.expired_count == 0 && self.pruned_version_count == 0 && self.consolidated_memories.is_empty()
+        self.expired_count == 0
+            && self.pruned_version_count == 0
+            && self.consolidated_memories.is_empty()
     }
 }

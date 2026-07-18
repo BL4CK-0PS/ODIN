@@ -70,9 +70,10 @@ impl Neo4jClient {
         status: &str,
         mitre_techniques: &[String],
     ) -> Result<(), KernelError> {
-        let graph = self.graph.as_ref().ok_or_else(|| {
-            KernelError::Internal("Neo4j not connected".into())
-        })?;
+        let graph = self
+            .graph
+            .as_ref()
+            .ok_or_else(|| KernelError::Internal("Neo4j not connected".into()))?;
 
         let q = query(
             "MERGE (i:Incident {id: $id})
@@ -90,9 +91,10 @@ impl Neo4jClient {
         .param("status", status)
         .param("mitre_techniques", mitre_techniques.join(","));
 
-        graph.run(q).await.map_err(|e| {
-            KernelError::Internal(format!("Neo4j upsert_incident failed: {}", e))
-        })?;
+        graph
+            .run(q)
+            .await
+            .map_err(|e| KernelError::Internal(format!("Neo4j upsert_incident failed: {}", e)))?;
 
         Ok(())
     }
@@ -103,9 +105,10 @@ impl Neo4jClient {
         name: &str,
         entity_type: &str,
     ) -> Result<(), KernelError> {
-        let graph = self.graph.as_ref().ok_or_else(|| {
-            KernelError::Internal("Neo4j not connected".into())
-        })?;
+        let graph = self
+            .graph
+            .as_ref()
+            .ok_or_else(|| KernelError::Internal("Neo4j not connected".into()))?;
 
         let label = match entity_type {
             "IpAddress" => "IpAddress",
@@ -129,9 +132,10 @@ impl Neo4jClient {
         .param("name", name)
         .param("entity_type", entity_type);
 
-        graph.run(q).await.map_err(|e| {
-            KernelError::Internal(format!("Neo4j upsert_entity failed: {}", e))
-        })?;
+        graph
+            .run(q)
+            .await
+            .map_err(|e| KernelError::Internal(format!("Neo4j upsert_entity failed: {}", e)))?;
 
         Ok(())
     }
@@ -144,9 +148,10 @@ impl Neo4jClient {
         content_type: &str,
         trust_score: f64,
     ) -> Result<(), KernelError> {
-        let graph = self.graph.as_ref().ok_or_else(|| {
-            KernelError::Internal("Neo4j not connected".into())
-        })?;
+        let graph = self
+            .graph
+            .as_ref()
+            .ok_or_else(|| KernelError::Internal("Neo4j not connected".into()))?;
 
         let q = query(
             "MERGE (ev:Evidence {id: $id})
@@ -164,9 +169,10 @@ impl Neo4jClient {
         .param("content_type", content_type)
         .param("trust_score", trust_score);
 
-        graph.run(q).await.map_err(|e| {
-            KernelError::Internal(format!("Neo4j upsert_evidence failed: {}", e))
-        })?;
+        graph
+            .run(q)
+            .await
+            .map_err(|e| KernelError::Internal(format!("Neo4j upsert_evidence failed: {}", e)))?;
 
         Ok(())
     }
@@ -177,9 +183,10 @@ impl Neo4jClient {
         incident_id: &str,
         relationship: &str,
     ) -> Result<(), KernelError> {
-        let graph = self.graph.as_ref().ok_or_else(|| {
-            KernelError::Internal("Neo4j not connected".into())
-        })?;
+        let graph = self
+            .graph
+            .as_ref()
+            .ok_or_else(|| KernelError::Internal("Neo4j not connected".into()))?;
 
         let q = query(&format!(
             "MATCH (e {{id: $entity_id}}), (i:Incident {{id: $incident_id}})
@@ -189,9 +196,10 @@ impl Neo4jClient {
         .param("entity_id", entity_id)
         .param("incident_id", incident_id);
 
-        graph.run(q).await.map_err(|e| {
-            KernelError::Internal(format!("Neo4j link_entity failed: {}", e))
-        })?;
+        graph
+            .run(q)
+            .await
+            .map_err(|e| KernelError::Internal(format!("Neo4j link_entity failed: {}", e)))?;
 
         Ok(())
     }
@@ -202,9 +210,10 @@ impl Neo4jClient {
         target_id: &str,
         relationship: &str,
     ) -> Result<(), KernelError> {
-        let graph = self.graph.as_ref().ok_or_else(|| {
-            KernelError::Internal("Neo4j not connected".into())
-        })?;
+        let graph = self
+            .graph
+            .as_ref()
+            .ok_or_else(|| KernelError::Internal("Neo4j not connected".into()))?;
 
         let q = query(&format!(
             "MATCH (a {{id: $source_id}}), (b {{id: $target_id}})
@@ -222,9 +231,10 @@ impl Neo4jClient {
     }
 
     pub async fn get_incident_graph(&self, incident_id: &str) -> Result<GraphData, KernelError> {
-        let graph = self.graph.as_ref().ok_or_else(|| {
-            KernelError::Internal("Neo4j not connected".into())
-        })?;
+        let graph = self
+            .graph
+            .as_ref()
+            .ok_or_else(|| KernelError::Internal("Neo4j not connected".into()))?;
 
         let mut nodes = Vec::new();
         let mut edges = Vec::new();
@@ -238,17 +248,21 @@ impl Neo4jClient {
         )
         .param("id", incident_id);
 
-        let mut txn = graph.start_txn().await.map_err(|e| {
-            KernelError::Internal(format!("Neo4j transaction failed: {}", e))
-        })?;
+        let mut txn = graph
+            .start_txn()
+            .await
+            .map_err(|e| KernelError::Internal(format!("Neo4j transaction failed: {}", e)))?;
 
-        let mut result = txn.execute(q).await.map_err(|e| {
-            KernelError::Internal(format!("Neo4j execute failed: {}", e))
-        })?;
+        let mut result = txn
+            .execute(q)
+            .await
+            .map_err(|e| KernelError::Internal(format!("Neo4j execute failed: {}", e)))?;
 
-        while let Some(row) = result.next(&mut txn).await.map_err(|e| {
-            KernelError::Internal(format!("Neo4j row fetch failed: {}", e))
-        })? {
+        while let Some(row) = result
+            .next(&mut txn)
+            .await
+            .map_err(|e| KernelError::Internal(format!("Neo4j row fetch failed: {}", e)))?
+        {
             if let Ok(node) = row.get::<Node>("i") {
                 let id = node.get::<String>("id").unwrap_or_default();
                 let props = serde_json::json!({
@@ -311,17 +325,18 @@ impl Neo4jClient {
             }
         }
 
-        txn.commit().await.map_err(|e| {
-            KernelError::Internal(format!("Neo4j commit failed: {}", e))
-        })?;
+        txn.commit()
+            .await
+            .map_err(|e| KernelError::Internal(format!("Neo4j commit failed: {}", e)))?;
 
         Ok(GraphData { nodes, edges })
     }
 
     pub async fn get_global_graph(&self) -> Result<GraphData, KernelError> {
-        let graph = self.graph.as_ref().ok_or_else(|| {
-            KernelError::Internal("Neo4j not connected".into())
-        })?;
+        let graph = self
+            .graph
+            .as_ref()
+            .ok_or_else(|| KernelError::Internal("Neo4j not connected".into()))?;
 
         let mut nodes = Vec::new();
         let mut edges = Vec::new();
@@ -336,38 +351,50 @@ impl Neo4jClient {
              RETURN n, type(r) AS rel_type, m",
         );
 
-        let mut txn = graph.start_txn().await.map_err(|e| {
-            KernelError::Internal(format!("Neo4j transaction failed: {}", e))
-        })?;
+        let mut txn = graph
+            .start_txn()
+            .await
+            .map_err(|e| KernelError::Internal(format!("Neo4j transaction failed: {}", e)))?;
 
-        let mut result = txn.execute(q).await.map_err(|e| {
-            KernelError::Internal(format!("Neo4j execute failed: {}", e))
-        })?;
+        let mut result = txn
+            .execute(q)
+            .await
+            .map_err(|e| KernelError::Internal(format!("Neo4j execute failed: {}", e)))?;
 
         let mut seen_nodes = std::collections::HashSet::new();
 
-        while let Some(row) = result.next(&mut txn).await.map_err(|e| {
-            KernelError::Internal(format!("Neo4j row fetch failed: {}", e))
-        })? {
+        while let Some(row) = result
+            .next(&mut txn)
+            .await
+            .map_err(|e| KernelError::Internal(format!("Neo4j row fetch failed: {}", e)))?
+        {
             if let Ok(node) = row.get::<Node>("n") {
                 let id = node.get::<String>("id").unwrap_or_default();
                 if !seen_nodes.contains(&id) {
                     seen_nodes.insert(id.clone());
-                    let label = node.labels().first().map(|s| s.to_string()).unwrap_or_default();
+                    let label = node
+                        .labels()
+                        .first()
+                        .map(|s| s.to_string())
+                        .unwrap_or_default();
                     let props = serde_json::json!({
                         "id": id,
                         "name": node.get::<String>("name").unwrap_or_default(),
                         "title": node.get::<String>("title").unwrap_or_default(),
                     });
-                    nodes.push(GraphNode { id, label, properties: props });
+                    nodes.push(GraphNode {
+                        id,
+                        label,
+                        properties: props,
+                    });
                 }
             }
 
-            if let (Ok(rel_type), Ok(target)) = (
-                row.get::<String>("rel_type"),
-                row.get::<Node>("m"),
-            ) {
-                let source_id = row.get::<Node>("n")
+            if let (Ok(rel_type), Ok(target)) =
+                (row.get::<String>("rel_type"), row.get::<Node>("m"))
+            {
+                let source_id = row
+                    .get::<Node>("n")
                     .ok()
                     .and_then(|n| n.get::<String>("id").ok())
                     .unwrap_or_default();
@@ -384,9 +411,9 @@ impl Neo4jClient {
             }
         }
 
-        txn.commit().await.map_err(|e| {
-            KernelError::Internal(format!("Neo4j commit failed: {}", e))
-        })?;
+        txn.commit()
+            .await
+            .map_err(|e| KernelError::Internal(format!("Neo4j commit failed: {}", e)))?;
 
         Ok(GraphData { nodes, edges })
     }
@@ -396,9 +423,10 @@ impl Neo4jClient {
         query_text: &str,
         limit: usize,
     ) -> Result<Vec<GraphNode>, KernelError> {
-        let graph = self.graph.as_ref().ok_or_else(|| {
-            KernelError::Internal("Neo4j not connected".into())
-        })?;
+        let graph = self
+            .graph
+            .as_ref()
+            .ok_or_else(|| KernelError::Internal("Neo4j not connected".into()))?;
 
         let cypher = format!(
             "MATCH (e:IpAddress|Domain|Hash|Process|File|User|Hostname|Entity)
@@ -410,33 +438,45 @@ impl Neo4jClient {
 
         let q = query(&cypher).param("query", query_text);
 
-        let mut txn = graph.start_txn().await.map_err(|e| {
-            KernelError::Internal(format!("Neo4j transaction failed: {}", e))
-        })?;
+        let mut txn = graph
+            .start_txn()
+            .await
+            .map_err(|e| KernelError::Internal(format!("Neo4j transaction failed: {}", e)))?;
 
-        let mut result = txn.execute(q).await.map_err(|e| {
-            KernelError::Internal(format!("Neo4j execute failed: {}", e))
-        })?;
+        let mut result = txn
+            .execute(q)
+            .await
+            .map_err(|e| KernelError::Internal(format!("Neo4j execute failed: {}", e)))?;
 
         let mut nodes = Vec::new();
-        while let Some(row) = result.next(&mut txn).await.map_err(|e| {
-            KernelError::Internal(format!("Neo4j row fetch failed: {}", e))
-        })? {
+        while let Some(row) = result
+            .next(&mut txn)
+            .await
+            .map_err(|e| KernelError::Internal(format!("Neo4j row fetch failed: {}", e)))?
+        {
             if let Ok(node) = row.get::<Node>("e") {
                 let id = node.get::<String>("id").unwrap_or_default();
-                let label = node.labels().first().map(|s| s.to_string()).unwrap_or_default();
+                let label = node
+                    .labels()
+                    .first()
+                    .map(|s| s.to_string())
+                    .unwrap_or_default();
                 let props = serde_json::json!({
                     "id": id,
                     "name": node.get::<String>("name").unwrap_or_default(),
                     "entity_type": node.get::<String>("entity_type").unwrap_or_default(),
                 });
-                nodes.push(GraphNode { id, label, properties: props });
+                nodes.push(GraphNode {
+                    id,
+                    label,
+                    properties: props,
+                });
             }
         }
 
-        txn.commit().await.map_err(|e| {
-            KernelError::Internal(format!("Neo4j commit failed: {}", e))
-        })?;
+        txn.commit()
+            .await
+            .map_err(|e| KernelError::Internal(format!("Neo4j commit failed: {}", e)))?;
 
         Ok(nodes)
     }
@@ -446,9 +486,10 @@ impl Neo4jClient {
         entity_id: &str,
         depth: usize,
     ) -> Result<GraphData, KernelError> {
-        let graph = self.graph.as_ref().ok_or_else(|| {
-            KernelError::Internal("Neo4j not connected".into())
-        })?;
+        let graph = self
+            .graph
+            .as_ref()
+            .ok_or_else(|| KernelError::Internal("Neo4j not connected".into()))?;
 
         let cypher = format!(
             "MATCH path = (start {{id: $id}})-[*1..{}]-()
@@ -460,32 +501,44 @@ impl Neo4jClient {
 
         let q = query(&cypher).param("id", entity_id);
 
-        let mut txn = graph.start_txn().await.map_err(|e| {
-            KernelError::Internal(format!("Neo4j transaction failed: {}", e))
-        })?;
+        let mut txn = graph
+            .start_txn()
+            .await
+            .map_err(|e| KernelError::Internal(format!("Neo4j transaction failed: {}", e)))?;
 
-        let mut result = txn.execute(q).await.map_err(|e| {
-            KernelError::Internal(format!("Neo4j execute failed: {}", e))
-        })?;
+        let mut result = txn
+            .execute(q)
+            .await
+            .map_err(|e| KernelError::Internal(format!("Neo4j execute failed: {}", e)))?;
 
         let mut nodes = Vec::new();
         let mut edges = Vec::new();
         let mut seen = std::collections::HashSet::new();
 
-        while let Some(row) = result.next(&mut txn).await.map_err(|e| {
-            KernelError::Internal(format!("Neo4j row fetch failed: {}", e))
-        })? {
+        while let Some(row) = result
+            .next(&mut txn)
+            .await
+            .map_err(|e| KernelError::Internal(format!("Neo4j row fetch failed: {}", e)))?
+        {
             if let Ok(node) = row.get::<Node>("n") {
                 let id = node.get::<String>("id").unwrap_or_default();
                 if !seen.contains(&id) {
                     seen.insert(id.clone());
-                    let label = node.labels().first().map(|s| s.to_string()).unwrap_or_default();
+                    let label = node
+                        .labels()
+                        .first()
+                        .map(|s| s.to_string())
+                        .unwrap_or_default();
                     let props = serde_json::json!({
                         "id": id,
                         "name": node.get::<String>("name").unwrap_or_default(),
                         "title": node.get::<String>("title").unwrap_or_default(),
                     });
-                    nodes.push(GraphNode { id, label, properties: props });
+                    nodes.push(GraphNode {
+                        id,
+                        label,
+                        properties: props,
+                    });
                 }
             }
 
@@ -509,17 +562,18 @@ impl Neo4jClient {
             }
         }
 
-        txn.commit().await.map_err(|e| {
-            KernelError::Internal(format!("Neo4j commit failed: {}", e))
-        })?;
+        txn.commit()
+            .await
+            .map_err(|e| KernelError::Internal(format!("Neo4j commit failed: {}", e)))?;
 
         Ok(GraphData { nodes, edges })
     }
 
     pub async fn delete_incident(&self, incident_id: &str) -> Result<(), KernelError> {
-        let graph = self.graph.as_ref().ok_or_else(|| {
-            KernelError::Internal("Neo4j not connected".into())
-        })?;
+        let graph = self
+            .graph
+            .as_ref()
+            .ok_or_else(|| KernelError::Internal("Neo4j not connected".into()))?;
 
         let q = query(
             "MATCH (i:Incident {id: $id})
@@ -527,9 +581,10 @@ impl Neo4jClient {
         )
         .param("id", incident_id);
 
-        graph.run(q).await.map_err(|e| {
-            KernelError::Internal(format!("Neo4j delete_incident failed: {}", e))
-        })?;
+        graph
+            .run(q)
+            .await
+            .map_err(|e| KernelError::Internal(format!("Neo4j delete_incident failed: {}", e)))?;
 
         Ok(())
     }

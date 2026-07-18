@@ -48,22 +48,43 @@ pub struct PredictionResult {
 pub struct StepPredictor;
 
 impl StepPredictor {
-    pub fn predict(evidence: &[Evidence], severity: &str, mitre_techniques: &[String]) -> PredictionResult {
+    pub fn predict(
+        evidence: &[Evidence],
+        severity: &str,
+        mitre_techniques: &[String],
+    ) -> PredictionResult {
         let mut steps = Vec::new();
-        let has_network = evidence.iter().any(|e| matches!(e.content_type, EvidenceType::NetworkCapture));
-        let has_logs = evidence.iter().any(|e| matches!(e.content_type, EvidenceType::Log));
-        let _has_mem_dump = evidence.iter().any(|e| matches!(e.content_type, EvidenceType::MemoryDump));
-        let _has_fs_artifact = evidence.iter().any(|e| matches!(e.content_type, EvidenceType::FileSystemArtifact));
+        let has_network = evidence
+            .iter()
+            .any(|e| matches!(e.content_type, EvidenceType::NetworkCapture));
+        let has_logs = evidence
+            .iter()
+            .any(|e| matches!(e.content_type, EvidenceType::Log));
+        let _has_mem_dump = evidence
+            .iter()
+            .any(|e| matches!(e.content_type, EvidenceType::MemoryDump));
+        let _has_fs_artifact = evidence
+            .iter()
+            .any(|e| matches!(e.content_type, EvidenceType::FileSystemArtifact));
 
-        let is_lateral_movement = mitre_techniques.iter().any(|t| t.starts_with("T1021") || t.starts_with("T1570"));
-        let is_persistence = mitre_techniques.iter().any(|t| t.starts_with("T1053") || t.starts_with("T1547") || t.starts_with("T1543"));
-        let is_c2 = mitre_techniques.iter().any(|t| t.starts_with("T1071") || t.starts_with("T1105") || t.starts_with("T1573"));
-        let is_data_exfil = mitre_techniques.iter().any(|t| t.starts_with("T1041") || t.starts_with("T1048") || t.starts_with("T1567"));
+        let is_lateral_movement = mitre_techniques
+            .iter()
+            .any(|t| t.starts_with("T1021") || t.starts_with("T1570"));
+        let is_persistence = mitre_techniques
+            .iter()
+            .any(|t| t.starts_with("T1053") || t.starts_with("T1547") || t.starts_with("T1543"));
+        let is_c2 = mitre_techniques
+            .iter()
+            .any(|t| t.starts_with("T1071") || t.starts_with("T1105") || t.starts_with("T1573"));
+        let is_data_exfil = mitre_techniques
+            .iter()
+            .any(|t| t.starts_with("T1041") || t.starts_with("T1048") || t.starts_with("T1567"));
 
         steps.push(NextStep {
             step_type: StepType::CollectForensics,
             title: "Collect forensic evidence".into(),
-            description: "Preserve volatile memory, disk images, and network captures for analysis".into(),
+            description: "Preserve volatile memory, disk images, and network captures for analysis"
+                .into(),
             confidence: 0.95,
             prerequisites: vec![],
             estimated_duration: "30-60 minutes".into(),
@@ -74,7 +95,9 @@ impl StepPredictor {
             steps.push(NextStep {
                 step_type: StepType::IsolateNetwork,
                 title: "Isolate affected systems".into(),
-                description: "Disconnect compromised hosts from the network to prevent lateral movement".into(),
+                description:
+                    "Disconnect compromised hosts from the network to prevent lateral movement"
+                        .into(),
                 confidence: 0.90,
                 prerequisites: vec!["Network topology identified".into()],
                 estimated_duration: "5-15 minutes".into(),
@@ -98,7 +121,8 @@ impl StepPredictor {
             steps.push(NextStep {
                 step_type: StepType::InvestigateScope,
                 title: "Investigate persistence mechanisms".into(),
-                description: "Search for scheduled tasks, services, registry keys, and startup items".into(),
+                description:
+                    "Search for scheduled tasks, services, registry keys, and startup items".into(),
                 confidence: 0.80,
                 prerequisites: vec!["Endpoint access available".into()],
                 estimated_duration: "1-2 hours".into(),
@@ -146,7 +170,9 @@ impl StepPredictor {
             steps.push(NextStep {
                 step_type: StepType::NotifyStakeholders,
                 title: "Notify stakeholders".into(),
-                description: "Inform legal, compliance, and affected parties per regulatory requirements".into(),
+                description:
+                    "Inform legal, compliance, and affected parties per regulatory requirements"
+                        .into(),
                 confidence: 0.70,
                 prerequisites: vec!["Impact assessment complete".into()],
                 estimated_duration: "1-2 hours".into(),
@@ -157,7 +183,8 @@ impl StepPredictor {
         steps.push(NextStep {
             step_type: StepType::EradicateThreat,
             title: "Eradicate threat".into(),
-            description: "Remove malware, close backdoors, and eliminate attacker persistence".into(),
+            description: "Remove malware, close backdoors, and eliminate attacker persistence"
+                .into(),
             confidence: 0.75,
             prerequisites: vec!["Root cause identified".into(), "IOCs cataloged".into()],
             estimated_duration: "2-4 hours".into(),
@@ -187,14 +214,19 @@ impl StepPredictor {
         steps.push(NextStep {
             step_type: StepType::HardenEndpoints,
             title: "Harden endpoints".into(),
-            description: "Apply patches, update EDR rules, and tighten endpoint security policies".into(),
+            description: "Apply patches, update EDR rules, and tighten endpoint security policies"
+                .into(),
             confidence: 0.60,
             prerequisites: vec!["Systems recovered".into()],
             estimated_duration: "2-4 hours".into(),
             risk_if_skipped: RiskLevel::Low,
         });
 
-        steps.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap_or(std::cmp::Ordering::Equal));
+        steps.sort_by(|a, b| {
+            b.confidence
+                .partial_cmp(&a.confidence)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         let attack_phase = if is_data_exfil {
             "Exfiltration"
@@ -230,6 +262,109 @@ impl StepPredictor {
                 attack_phase,
                 severity,
             ),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use odin_kernel::{Evidence, EvidenceType};
+
+    fn ev(ct: EvidenceType) -> Evidence {
+        Evidence::new("i".into(), "s".into(), "c".into(), ct, 0.9)
+    }
+
+    #[test]
+    fn predict_with_empty_evidence() {
+        let result = StepPredictor::predict(&[], "Medium", &[]);
+        assert!(!result.recommended_steps.is_empty());
+        assert_eq!(result.predicted_attack_phase, "Initial Access");
+        assert_eq!(result.estimated_time_to_contain, "2-4 hours");
+    }
+
+    #[test]
+    fn predict_critical_severity_escalates() {
+        let result = StepPredictor::predict(&[], "Critical", &[]);
+        let has_escalate = result
+            .recommended_steps
+            .iter()
+            .any(|s| s.step_type == StepType::EscalateToCiso);
+        assert!(has_escalate);
+        assert_eq!(result.estimated_time_to_contain, "< 1 hour");
+    }
+
+    #[test]
+    fn predict_network_evidence_isolates() {
+        let evidence = vec![ev(EvidenceType::NetworkCapture)];
+        let result = StepPredictor::predict(&evidence, "High", &[]);
+        let has_isolate = result
+            .recommended_steps
+            .iter()
+            .any(|s| s.step_type == StepType::IsolateNetwork);
+        assert!(has_isolate);
+    }
+
+    #[test]
+    fn predict_c2_technique() {
+        let result = StepPredictor::predict(&[], "High", &["T1071.001".into()]);
+        assert_eq!(result.predicted_attack_phase, "Command & Control");
+        let has_block = result
+            .recommended_steps
+            .iter()
+            .any(|s| s.step_type == StepType::BlockIndicators);
+        assert!(has_block);
+    }
+
+    #[test]
+    fn predict_lateral_movement_technique() {
+        let result = StepPredictor::predict(&[], "Medium", &["T1021.002".into()]);
+        assert_eq!(result.predicted_attack_phase, "Lateral Movement");
+        let has_firewall = result
+            .recommended_steps
+            .iter()
+            .any(|s| s.step_type == StepType::UpdateFirewallRules);
+        assert!(has_firewall);
+    }
+
+    #[test]
+    fn predict_data_exfil_technique() {
+        let result = StepPredictor::predict(&[], "High", &["T1041".into()]);
+        assert_eq!(result.predicted_attack_phase, "Exfiltration");
+        let has_notify = result
+            .recommended_steps
+            .iter()
+            .any(|s| s.step_type == StepType::NotifyStakeholders);
+        assert!(has_notify);
+    }
+
+    #[test]
+    fn predict_persistence_technique() {
+        let result = StepPredictor::predict(&[], "Medium", &["T1053.005".into()]);
+        assert_eq!(result.predicted_attack_phase, "Persistence");
+        let has_investigate = result
+            .recommended_steps
+            .iter()
+            .any(|s| s.step_type == StepType::InvestigateScope);
+        assert!(has_investigate);
+    }
+
+    #[test]
+    fn predict_log_evidence_reviews_logs() {
+        let evidence = vec![ev(EvidenceType::Log)];
+        let result = StepPredictor::predict(&evidence, "Low", &[]);
+        let has_review = result
+            .recommended_steps
+            .iter()
+            .any(|s| s.step_type == StepType::ReviewLogs);
+        assert!(has_review);
+    }
+
+    #[test]
+    fn steps_are_sorted_by_confidence() {
+        let result = StepPredictor::predict(&[], "Medium", &[]);
+        for w in result.recommended_steps.windows(2) {
+            assert!(w[0].confidence >= w[1].confidence);
         }
     }
 }

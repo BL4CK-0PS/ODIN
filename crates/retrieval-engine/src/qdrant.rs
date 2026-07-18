@@ -42,9 +42,10 @@ impl QdrantClient {
 
     pub async fn ensure_collection(&self, vector_size: u64) -> Result<(), KernelError> {
         let url = format!("{}/collections/{}", self.base_url, self.collection);
-        let exists = self.client.get(&url).send().await.map_err(|e| {
-            KernelError::Internal(format!("Qdrant check collection failed: {}", e))
-        })?;
+        let exists =
+            self.client.get(&url).send().await.map_err(|e| {
+                KernelError::Internal(format!("Qdrant check collection failed: {}", e))
+            })?;
         if exists.status().is_success() {
             return Ok(());
         }
@@ -61,7 +62,9 @@ impl QdrantClient {
             .json(&body)
             .send()
             .await
-            .map_err(|e| KernelError::Internal(format!("Qdrant create collection failed: {}", e)))?;
+            .map_err(|e| {
+                KernelError::Internal(format!("Qdrant create collection failed: {}", e))
+            })?;
         tracing::info!("Created Qdrant collection: {}", self.collection);
         Ok(())
     }

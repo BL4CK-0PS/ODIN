@@ -61,12 +61,17 @@ impl OllamaClient {
             model: self.embed_model.clone(),
             prompt: text.to_string(),
         };
-        let resp = self.client.post(&url).json(&body).send().await.map_err(|e| {
-            KernelError::Internal(format!("Ollama embed request failed: {}", e))
-        })?;
-        let data: EmbedResponse = resp.json().await.map_err(|e| {
-            KernelError::Internal(format!("Ollama embed parse failed: {}", e))
-        })?;
+        let resp = self
+            .client
+            .post(&url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| KernelError::Internal(format!("Ollama embed request failed: {}", e)))?;
+        let data: EmbedResponse = resp
+            .json()
+            .await
+            .map_err(|e| KernelError::Internal(format!("Ollama embed parse failed: {}", e)))?;
         Ok(data.embedding)
     }
 
@@ -81,12 +86,17 @@ impl OllamaClient {
                 top_p: 0.9,
             }),
         };
-        let resp = self.client.post(&url).json(&body).send().await.map_err(|e| {
-            KernelError::Internal(format!("Ollama generate request failed: {}", e))
-        })?;
-        let data: GenerateResponse = resp.json().await.map_err(|e| {
-            KernelError::Internal(format!("Ollama generate parse failed: {}", e))
-        })?;
+        let resp = self
+            .client
+            .post(&url)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| KernelError::Internal(format!("Ollama generate request failed: {}", e)))?;
+        let data: GenerateResponse = resp
+            .json()
+            .await
+            .map_err(|e| KernelError::Internal(format!("Ollama generate parse failed: {}", e)))?;
         Ok(data.response)
     }
 
@@ -104,7 +114,11 @@ impl OllamaClient {
         self.generate(&prompt, 0.3).await
     }
 
-    pub async fn generate_narrative(&self, incident_summary: &str, techniques: &[String]) -> Result<String, KernelError> {
+    pub async fn generate_narrative(
+        &self,
+        incident_summary: &str,
+        techniques: &[String],
+    ) -> Result<String, KernelError> {
         let techs = techniques.join(", ");
         let prompt = format!(
             "Generate a concise attack narrative for a cybersecurity incident with the following details:\n\

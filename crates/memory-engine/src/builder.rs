@@ -1,4 +1,6 @@
-use odin_kernel::{CanonicalIncident, Confidence, ConfidenceSource, IntelligenceObject, MemoryObject, KernelError};
+use odin_kernel::{
+    CanonicalIncident, Confidence, ConfidenceSource, IntelligenceObject, KernelError, MemoryObject,
+};
 
 pub struct MemoryBuilder;
 
@@ -18,12 +20,10 @@ impl MemoryBuilder {
     }
 
     fn compute_confidence(&self, incident: &CanonicalIncident) -> Confidence {
-        let sources = vec![
-            ConfidenceSource {
-                label: format!("incident:{}", incident.id),
-                trust: 1.0,
-            },
-        ];
+        let sources = vec![ConfidenceSource {
+            label: format!("incident:{}", incident.id),
+            trust: 1.0,
+        }];
         Confidence::new(sources)
     }
 

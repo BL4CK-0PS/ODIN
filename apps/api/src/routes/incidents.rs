@@ -7,8 +7,11 @@ use axum::{
     response::Html,
     Json,
 };
-use odin_core::odin_kernel::{CanonicalIncident, Evidence, EvidenceType, Severity, IncidentStatus, MemoryObject, Entity, EntityType};
 use odin_core::odin_decision_engine::RecommendationKind;
+use odin_core::odin_kernel::{
+    CanonicalIncident, Entity, EntityType, Evidence, EvidenceType, IncidentStatus, MemoryObject,
+    Severity,
+};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
@@ -54,26 +57,43 @@ fn validate_upload(req: &UploadRequest) -> Result<(), AppError> {
         return Err(AppError::BadRequest("Title is required".into()));
     }
     if req.title.len() > 500 {
-        return Err(AppError::BadRequest("Title must be 500 characters or fewer".into()));
+        return Err(AppError::BadRequest(
+            "Title must be 500 characters or fewer".into(),
+        ));
     }
     if req.description.len() > 100_000 {
-        return Err(AppError::BadRequest("Description must be 100,000 characters or fewer".into()));
+        return Err(AppError::BadRequest(
+            "Description must be 100,000 characters or fewer".into(),
+        ));
     }
     if req.evidence.is_empty() {
-        return Err(AppError::BadRequest("At least one evidence item is required".into()));
+        return Err(AppError::BadRequest(
+            "At least one evidence item is required".into(),
+        ));
     }
     if req.evidence.len() > 1000 {
-        return Err(AppError::BadRequest("Maximum 1000 evidence items per incident".into()));
+        return Err(AppError::BadRequest(
+            "Maximum 1000 evidence items per incident".into(),
+        ));
     }
     for (i, e) in req.evidence.iter().enumerate() {
         if e.source.trim().is_empty() {
-            return Err(AppError::BadRequest(format!("Evidence {}: source is required", i + 1)));
+            return Err(AppError::BadRequest(format!(
+                "Evidence {}: source is required",
+                i + 1
+            )));
         }
         if e.source.len() > 500 {
-            return Err(AppError::BadRequest(format!("Evidence {}: source must be 500 characters or fewer", i + 1)));
+            return Err(AppError::BadRequest(format!(
+                "Evidence {}: source must be 500 characters or fewer",
+                i + 1
+            )));
         }
         if e.content.len() > 500_000 {
-            return Err(AppError::BadRequest(format!("Evidence {}: content must be 500,000 characters or fewer", i + 1)));
+            return Err(AppError::BadRequest(format!(
+                "Evidence {}: content must be 500,000 characters or fewer",
+                i + 1
+            )));
         }
     }
     Ok(())
@@ -104,10 +124,11 @@ fn format_severity(s: &Severity) -> &'static str {
 fn extract_mitre_techniques(text: &str) -> Vec<String> {
     let mut techniques = Vec::new();
     for word in text.split(|c: char| !c.is_alphanumeric()) {
-        if word.len() == 5 && word.starts_with('T') {
-            if word.chars().skip(1).all(|c| c.is_ascii_digit()) {
-                techniques.push(word.to_string());
-            }
+        if word.len() == 5
+            && word.starts_with('T')
+            && word.chars().skip(1).all(|c| c.is_ascii_digit())
+        {
+            techniques.push(word.to_string());
         }
     }
     techniques
@@ -115,26 +136,42 @@ fn extract_mitre_techniques(text: &str) -> Vec<String> {
 
 fn extract_entities_from_content(content: &str) -> Vec<(EntityType, String)> {
     let mut entities = Vec::new();
-    let words: Vec<&str> = content.split(|c: char| c.is_whitespace() || c == ',' || c == ';' || c == '=' || c == '"' || c == '\'').collect();
+    let words: Vec<&str> = content
+        .split(|c: char| {
+            c.is_whitespace() || c == ',' || c == ';' || c == '=' || c == '"' || c == '\''
+        })
+        .collect();
 
     for word in words {
-        let clean = word.trim_matches(|c: char| !c.is_alphanumeric() && c != '.' && c != '-' && c != '_');
+        let clean =
+            word.trim_matches(|c: char| !c.is_alphanumeric() && c != '.' && c != '-' && c != '_');
         if clean.is_empty() {
             continue;
         }
 
         if clean.contains('.') {
             let parts: Vec<&str> = clean.split('.').collect();
-            if parts.len() == 4 && parts.iter().all(|p| p.chars().all(|c| c.is_ascii_digit()) && !p.is_empty()) {
-                if parts.iter().all(|p| p.parse::<u8>().is_ok()) {
-                    entities.push((EntityType::IpAddress, clean.to_string()));
-                    continue;
-                }
+            if parts.len() == 4
+                && parts
+                    .iter()
+                    .all(|p| p.chars().all(|c| c.is_ascii_digit()) && !p.is_empty())
+                && parts.iter().all(|p| p.parse::<u8>().is_ok())
+            {
+                entities.push((EntityType::IpAddress, clean.to_string()));
+                continue;
             }
         }
 
-        if clean.ends_with(".exe") || clean.ends_with(".dll") || clean.ends_with(".ps1") || clean.ends_with(".bat") {
-            if clean == "powershell.exe" || clean == "cmd.exe" || clean == "rundll32.exe" || clean == "svchost.exe" {
+        if clean.ends_with(".exe")
+            || clean.ends_with(".dll")
+            || clean.ends_with(".ps1")
+            || clean.ends_with(".bat")
+        {
+            if clean == "powershell.exe"
+                || clean == "cmd.exe"
+                || clean == "rundll32.exe"
+                || clean == "svchost.exe"
+            {
                 entities.push((EntityType::Process, clean.to_string()));
             } else {
                 entities.push((EntityType::File, clean.to_string()));
@@ -143,8 +180,13 @@ fn extract_entities_from_content(content: &str) -> Vec<(EntityType, String)> {
         }
 
         if clean.contains('.') && !clean.starts_with('.') && !clean.ends_with('.') {
-            let suffix = clean.split('.').last().unwrap_or("");
-            if suffix == "com" || suffix == "net" || suffix == "org" || suffix == "xyz" || suffix == "local" {
+            let suffix = clean.split('.').next_back().unwrap_or("");
+            if suffix == "com"
+                || suffix == "net"
+                || suffix == "org"
+                || suffix == "xyz"
+                || suffix == "local"
+            {
                 entities.push((EntityType::Domain, clean.to_string()));
                 continue;
             }
@@ -196,47 +238,58 @@ pub async fn upload(
 
         if use_ai_extraction {
             if let Some(ref ollama) = state.ollama_client {
-                        let content_type_str = match ct {
-                            EvidenceType::Log => "log",
-                            EvidenceType::NetworkCapture => "network_capture",
-                            EvidenceType::MemoryDump => "memory_dump",
-                            EvidenceType::FileSystemArtifact => "file_system_artifact",
-                            EvidenceType::ThreatIntelReport => "threat_intel_report",
-                            EvidenceType::UserReport => "user_report",
-                            _ => "other",
-                        };
-                match ollama.extract_entities_with_ai(&e.content, content_type_str).await {
+                let content_type_str = match ct {
+                    EvidenceType::Log => "log",
+                    EvidenceType::NetworkCapture => "network_capture",
+                    EvidenceType::MemoryDump => "memory_dump",
+                    EvidenceType::FileSystemArtifact => "file_system_artifact",
+                    EvidenceType::ThreatIntelReport => "threat_intel_report",
+                    EvidenceType::UserReport => "user_report",
+                    _ => "other",
+                };
+                match ollama
+                    .extract_entities_with_ai(&e.content, content_type_str)
+                    .await
+                {
                     Ok(ai_result) => {
                         if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(&ai_result) {
-                            if let Some(ips) = parsed.get("ip_addresses").and_then(|v| v.as_array()) {
+                            if let Some(ips) = parsed.get("ip_addresses").and_then(|v| v.as_array())
+                            {
                                 for ip in ips {
                                     if let Some(s) = ip.as_str() {
                                         ext_entities.push((EntityType::IpAddress, s.to_string()));
                                     }
                                 }
                             }
-                            if let Some(domains) = parsed.get("domains").and_then(|v| v.as_array()) {
+                            if let Some(domains) = parsed.get("domains").and_then(|v| v.as_array())
+                            {
                                 for d in domains {
                                     if let Some(s) = d.as_str() {
                                         ext_entities.push((EntityType::Domain, s.to_string()));
                                     }
                                 }
                             }
-                            if let Some(hashes) = parsed.get("file_hashes").and_then(|v| v.as_array()) {
+                            if let Some(hashes) =
+                                parsed.get("file_hashes").and_then(|v| v.as_array())
+                            {
                                 for h in hashes {
                                     if let Some(s) = h.as_str() {
                                         ext_entities.push((EntityType::File, s.to_string()));
                                     }
                                 }
                             }
-                            if let Some(processes) = parsed.get("processes").and_then(|v| v.as_array()) {
+                            if let Some(processes) =
+                                parsed.get("processes").and_then(|v| v.as_array())
+                            {
                                 for p in processes {
                                     if let Some(s) = p.as_str() {
                                         ext_entities.push((EntityType::Process, s.to_string()));
                                     }
                                 }
                             }
-                            if let Some(mitre) = parsed.get("mitre_techniques").and_then(|v| v.as_array()) {
+                            if let Some(mitre) =
+                                parsed.get("mitre_techniques").and_then(|v| v.as_array())
+                            {
                                 for t in mitre {
                                     if let Some(s) = t.as_str() {
                                         ext_techniques.push(s.to_string());
@@ -247,7 +300,10 @@ pub async fn upload(
                         }
                     }
                     Err(err) => {
-                        tracing::warn!("AI entity extraction failed, falling back to regex: {}", err);
+                        tracing::warn!(
+                            "AI entity extraction failed, falling back to regex: {}",
+                            err
+                        );
                         let ents = extract_entities_from_content(&e.content);
                         ext_entities.extend(ents);
                     }
@@ -258,7 +314,13 @@ pub async fn upload(
             ext_entities.extend(ents);
         }
 
-        evidence_list.push(Evidence::new(incident_id.clone(), e.source, e.content, ct, 0.9));
+        evidence_list.push(Evidence::new(
+            incident_id.clone(),
+            e.source,
+            e.content,
+            ct,
+            0.9,
+        ));
     }
 
     ext_techniques.sort();
@@ -307,8 +369,16 @@ pub async fn upload(
     // Qdrant upsert when available
     if let Some(ref qdrant) = state.qdrant {
         if let Some(ref ollama) = state.ollama_client {
-            let combined_text = format!("{} {} {}", incident.title, incident.description,
-                evidence_list.iter().map(|e| e.content.as_str()).collect::<Vec<_>>().join(" "));
+            let combined_text = format!(
+                "{} {} {}",
+                incident.title,
+                incident.description,
+                evidence_list
+                    .iter()
+                    .map(|e| e.content.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ")
+            );
             match ollama.generate_embedding(&combined_text).await {
                 Ok(embedding) => {
                     let payload = serde_json::json!({
@@ -329,26 +399,93 @@ pub async fn upload(
         }
     }
 
-    // In-memory fallback
+    // Neo4j graph writes when available
+    if let Some(ref neo4j) = state.neo4j {
+        let status_str = "New";
+        if let Err(e) = neo4j
+            .upsert_incident(
+                &incident_id,
+                &req.title,
+                &req.description,
+                severity_str,
+                status_str,
+                &incident.mitre_techniques,
+            )
+            .await
+        {
+            tracing::warn!("Neo4j upsert_incident failed: {}", e);
+        }
+        for ev in &evidence_list {
+            let content_type_str = match ev.content_type {
+                EvidenceType::Log => "log",
+                EvidenceType::NetworkCapture => "network_capture",
+                EvidenceType::FileSystemArtifact => "file_system_artifact",
+                EvidenceType::MemoryDump => "memory_dump",
+                EvidenceType::ThreatIntelReport => "threat_intel_report",
+                EvidenceType::UserReport => "user_report",
+                _ => "other",
+            };
+            if let Err(e) = neo4j
+                .upsert_evidence(
+                    &ev.id,
+                    &incident_id,
+                    &ev.source,
+                    content_type_str,
+                    ev.trust_score,
+                )
+                .await
+            {
+                tracing::warn!("Neo4j upsert_evidence failed: {}", e);
+            }
+        }
+        for ent in &entities {
+            let etype_str = format!("{:?}", ent.entity_type);
+            if let Err(e) = neo4j.upsert_entity(&ent.id, &ent.name, &etype_str).await {
+                tracing::warn!("Neo4j upsert_entity failed: {}", e);
+            }
+            if let Err(e) = neo4j
+                .link_entity_to_incident(&ent.id, &incident_id, "ASSOCIATED_WITH")
+                .await
+            {
+                tracing::warn!("Neo4j link_entity_to_incident failed: {}", e);
+            }
+        }
+    }
+
+    // Store evidence artifacts when S3 is available
+    for ev in &evidence_list {
+        let content_bytes = ev.content.as_bytes();
+        if let Err(e) = state
+            .artifact_store
+            .store_artifact(&incident_id, &ev.id, content_bytes)
+            .await
+        {
+            tracing::warn!("Artifact store failed for evidence {}: {}", ev.id, e);
+        }
+    }
+
+    // In-memory fallback — only write when PgStore is not available
     let evidence_count = evidence_list.len();
     let entity_count = entities.len();
 
     tracing::info!(incident_id = %incident_id, evidence_count, entity_count, "Incident uploaded");
 
-    if let Ok(mut incidents) = state.incidents.write() {
-        incidents.insert(incident_id.clone(), incident);
-    } else {
-        return Err(AppError::LockError);
-    }
-    if let Ok(mut ev_map) = state.evidence.write() {
-        ev_map.insert(incident_id.clone(), evidence_list);
-    } else {
-        return Err(AppError::LockError);
-    }
-    if let Ok(mut ent_map) = state.entities.write() {
-        ent_map.insert(incident_id.clone(), entities);
-    } else {
-        return Err(AppError::LockError);
+    if state.pg_store.is_none() {
+        if let Ok(mut incidents) = state.incidents.write() {
+            incidents.insert(incident_id.clone(), incident);
+        } else {
+            return Err(AppError::LockError);
+        }
+        if let Ok(mut ev_map) = state.evidence.write() {
+            ev_map.insert(incident_id.clone(), evidence_list);
+        } else {
+            return Err(AppError::LockError);
+        }
+        if let Ok(mut ent_map) = state.entities.write() {
+            ent_map.insert(incident_id.clone(), entities);
+        } else {
+            return Err(AppError::LockError);
+        }
     }
 
     let summary = IncidentSummary {
@@ -400,15 +537,13 @@ pub async fn get_incident(
     let incident = if let Some(ref pg) = state.pg_store {
         match pg.get_incident(&id).await {
             Ok(Some(incident)) => incident,
-            _ => {
-                match state.incidents.read() {
-                    Ok(incidents) => match incidents.get(&id) {
-                        Some(i) => i.clone(),
-                        None => return Err(AppError::NotFound("Incident not found".into())),
-                    },
-                    Err(_) => return Err(AppError::LockError),
-                }
-            }
+            _ => match state.incidents.read() {
+                Ok(incidents) => match incidents.get(&id) {
+                    Some(i) => i.clone(),
+                    None => return Err(AppError::NotFound("Incident not found".into())),
+                },
+                Err(_) => return Err(AppError::LockError),
+            },
         }
     } else {
         match state.incidents.read() {
@@ -450,11 +585,9 @@ pub async fn get_timeline(
         None
     };
 
-    let ev_list = ev_list.unwrap_or_else(|| {
-        match state.evidence.read() {
-            Ok(evidence) => evidence.get(&id).cloned().unwrap_or_default(),
-            Err(_) => Vec::new(),
-        }
+    let ev_list = ev_list.unwrap_or_else(|| match state.evidence.read() {
+        Ok(evidence) => evidence.get(&id).cloned().unwrap_or_default(),
+        Err(_) => Vec::new(),
     });
 
     let timeline: Vec<serde_json::Value> = ev_list
@@ -471,7 +604,9 @@ pub async fn get_timeline(
         })
         .collect();
 
-    Ok(ApiResponse::ok(serde_json::json!({ "incident_id": id, "events": timeline })))
+    Ok(ApiResponse::ok(
+        serde_json::json!({ "incident_id": id, "events": timeline }),
+    ))
 }
 
 pub async fn get_memory(
@@ -518,15 +653,13 @@ pub async fn search_similar(
     let query = if let Some(ref pg) = state.pg_store {
         match pg.get_incident(&req.incident_id).await {
             Ok(Some(i)) => i,
-            _ => {
-                match state.incidents.read() {
-                    Ok(incidents) => match incidents.get(&req.incident_id) {
-                        Some(i) => i.clone(),
-                        None => return Err(AppError::NotFound("Incident not found".into())),
-                    },
-                    Err(_) => return Err(AppError::LockError),
-                }
-            }
+            _ => match state.incidents.read() {
+                Ok(incidents) => match incidents.get(&req.incident_id) {
+                    Some(i) => i.clone(),
+                    None => return Err(AppError::NotFound("Incident not found".into())),
+                },
+                Err(_) => return Err(AppError::LockError),
+            },
         }
     } else {
         match state.incidents.read() {
@@ -542,11 +675,16 @@ pub async fn search_similar(
 
     let query_text = format!("{} {}", query.title, query.description);
 
-    match state.retrieval.search_hybrid(&query, &candidates, &query_text, top_k).await {
+    match state
+        .retrieval
+        .search_hybrid(&query, &candidates, &query_text, top_k)
+        .await
+    {
         Ok(results) => {
-            let filtered: Vec<_> = results.into_iter().filter(|r| {
-                state.policy.is_allowed(r.score.overall)
-            }).collect();
+            let filtered: Vec<_> = results
+                .into_iter()
+                .filter(|r| state.policy.is_allowed(r.score.overall))
+                .collect();
             let response = serde_json::json!({ "results": filtered });
             if let Some(ref redis) = state.redis {
                 if let Ok(json) = serde_json::to_string(&response) {
@@ -567,7 +705,9 @@ pub async fn search_text(
         return Err(AppError::BadRequest("Search query is required".into()));
     }
     if req.query.len() > 5000 {
-        return Err(AppError::BadRequest("Search query must be 5000 characters or fewer".into()));
+        return Err(AppError::BadRequest(
+            "Search query must be 5000 characters or fewer".into(),
+        ));
     }
     let top_k = req.top_k.unwrap_or(5).clamp(1, 100);
 
@@ -580,7 +720,14 @@ pub async fn search_text(
     let ext_techniques = extract_mitre_techniques(&req.query);
     dummy_query.mitre_techniques = ext_techniques;
 
-    let keywords = vec!["ransomware", "phishing", "credentials", "dll", "powershell", "persistence"];
+    let keywords = vec![
+        "ransomware",
+        "phishing",
+        "credentials",
+        "dll",
+        "powershell",
+        "persistence",
+    ];
     let mut tags = Vec::new();
     let query_lower = req.query.to_lowercase();
     for kw in keywords {
@@ -592,11 +739,16 @@ pub async fn search_text(
 
     let candidates = state.memory.list_all().unwrap_or_default();
 
-    match state.retrieval.search_hybrid(&dummy_query, &candidates, &req.query, top_k).await {
+    match state
+        .retrieval
+        .search_hybrid(&dummy_query, &candidates, &req.query, top_k)
+        .await
+    {
         Ok(results) => {
-            let filtered: Vec<_> = results.into_iter().filter(|r| {
-                state.policy.is_allowed(r.score.overall)
-            }).collect();
+            let filtered: Vec<_> = results
+                .into_iter()
+                .filter(|r| state.policy.is_allowed(r.score.overall))
+                .collect();
             Ok(ApiResponse::ok(serde_json::json!({ "results": filtered })))
         }
         Err(e) => Err(AppError::Internal(e.to_string())),
@@ -613,21 +765,28 @@ pub async fn generate_narrative(
 
     let (summary, techniques) = if let Some(ref pg) = state.pg_store {
         match pg.get_incident(&id).await {
-            Ok(Some(i)) => (format!("{}: {}", i.title, i.description), i.mitre_techniques.clone()),
-            _ => {
-                match state.incidents.read() {
-                    Ok(incidents) => match incidents.get(&id) {
-                        Some(i) => (format!("{}: {}", i.title, i.description), i.mitre_techniques.clone()),
-                        None => return Err(AppError::NotFound("Incident not found".into())),
-                    },
-                    Err(_) => return Err(AppError::LockError),
-                }
-            }
+            Ok(Some(i)) => (
+                format!("{}: {}", i.title, i.description),
+                i.mitre_techniques.clone(),
+            ),
+            _ => match state.incidents.read() {
+                Ok(incidents) => match incidents.get(&id) {
+                    Some(i) => (
+                        format!("{}: {}", i.title, i.description),
+                        i.mitre_techniques.clone(),
+                    ),
+                    None => return Err(AppError::NotFound("Incident not found".into())),
+                },
+                Err(_) => return Err(AppError::LockError),
+            },
         }
     } else {
         match state.incidents.read() {
             Ok(incidents) => match incidents.get(&id) {
-                Some(i) => (format!("{}: {}", i.title, i.description), i.mitre_techniques.clone()),
+                Some(i) => (
+                    format!("{}: {}", i.title, i.description),
+                    i.mitre_techniques.clone(),
+                ),
                 None => return Err(AppError::NotFound("Incident not found".into())),
             },
             Err(_) => return Err(AppError::LockError),
@@ -639,12 +798,17 @@ pub async fn generate_narrative(
         Err(_) => return Err(AppError::LockError),
     };
     if !has_ollama {
-        return Err(AppError::BadRequest("Ollama pipeline not configured".into()));
+        return Err(AppError::BadRequest(
+            "Ollama pipeline not configured".into(),
+        ));
     }
 
-    let ollama_client = state.ollama_client.clone()
+    let ollama_client = state
+        .ollama_client
+        .clone()
         .ok_or_else(|| AppError::BadRequest("Ollama not configured".into()))?;
-    let narrative = ollama_client.generate_narrative(&summary, &techniques)
+    let narrative = ollama_client
+        .generate_narrative(&summary, &techniques)
         .await
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
@@ -665,15 +829,13 @@ pub async fn generate_report(
     let incident = if let Some(ref pg) = state.pg_store {
         match pg.get_incident(&id).await {
             Ok(Some(i)) => i,
-            _ => {
-                match state.incidents.read() {
-                    Ok(incidents) => match incidents.get(&id) {
-                        Some(i) => i.clone(),
-                        None => return Err(AppError::NotFound("Incident not found".into())),
-                    },
-                    Err(_) => return Err(AppError::LockError),
-                }
-            }
+            _ => match state.incidents.read() {
+                Ok(incidents) => match incidents.get(&id) {
+                    Some(i) => i.clone(),
+                    None => return Err(AppError::NotFound("Incident not found".into())),
+                },
+                Err(_) => return Err(AppError::LockError),
+            },
         }
     } else {
         match state.incidents.read() {
@@ -688,22 +850,36 @@ pub async fn generate_report(
     let evidence = if let Some(ref pg) = state.pg_store {
         pg.get_evidence(&id).await.unwrap_or_default()
     } else {
-        state.evidence.read().map(|m| m.get(&id).cloned().unwrap_or_default()).unwrap_or_default()
+        state
+            .evidence
+            .read()
+            .map(|m| m.get(&id).cloned().unwrap_or_default())
+            .unwrap_or_default()
     };
 
     let entities = if let Some(ref pg) = state.pg_store {
         pg.get_entities(&id).await.unwrap_or_default()
     } else {
-        state.entities.read().map(|m| m.get(&id).cloned().unwrap_or_default()).unwrap_or_default()
+        state
+            .entities
+            .read()
+            .map(|m| m.get(&id).cloned().unwrap_or_default())
+            .unwrap_or_default()
     };
 
-    let memory_summary = state.memory.get_memory_by_incident(&id)
+    let memory_summary = state
+        .memory
+        .get_memory_by_incident(&id)
         .ok()
         .flatten()
         .map(|m| m.summary);
 
     let playbook_steps: Vec<String> = if let Ok(decision) = state.decision.evaluate(&evidence) {
-        decision.recommendations.iter().map(|r| r.description.clone()).collect()
+        decision
+            .recommendations
+            .iter()
+            .map(|r| r.description.clone())
+            .collect()
     } else {
         vec![
             "Isolate affected systems".into(),
@@ -735,22 +911,32 @@ pub async fn get_graph(
     if let Some(ref neo4j) = state.neo4j {
         match neo4j.get_incident_graph(&id).await {
             Ok(graph_data) => {
-                let nodes: Vec<serde_json::Value> = graph_data.nodes.iter().map(|n| {
-                    serde_json::json!({
-                        "id": n.id,
-                        "type": n.label.to_lowercase(),
-                        "label": n.properties.get("title").or(n.properties.get("name"))
-                            .and_then(|v| v.as_str()).unwrap_or(&n.id),
+                let nodes: Vec<serde_json::Value> = graph_data
+                    .nodes
+                    .iter()
+                    .map(|n| {
+                        serde_json::json!({
+                            "id": n.id,
+                            "type": n.label.to_lowercase(),
+                            "label": n.properties.get("title").or(n.properties.get("name"))
+                                .and_then(|v| v.as_str()).unwrap_or(&n.id),
+                        })
                     })
-                }).collect();
-                let edges: Vec<serde_json::Value> = graph_data.edges.iter().map(|e| {
-                    serde_json::json!({
-                        "source": e.source,
-                        "target": e.target,
-                        "type": e.relationship.to_lowercase(),
+                    .collect();
+                let edges: Vec<serde_json::Value> = graph_data
+                    .edges
+                    .iter()
+                    .map(|e| {
+                        serde_json::json!({
+                            "source": e.source,
+                            "target": e.target,
+                            "type": e.relationship.to_lowercase(),
+                        })
                     })
-                }).collect();
-                return Ok(ApiResponse::ok(serde_json::json!({ "nodes": nodes, "edges": edges })));
+                    .collect();
+                return Ok(ApiResponse::ok(
+                    serde_json::json!({ "nodes": nodes, "edges": edges }),
+                ));
             }
             Err(e) => {
                 tracing::warn!("Neo4j graph query failed, falling back to in-memory: {}", e);
@@ -826,22 +1012,32 @@ pub async fn get_global_graph(
     if let Some(ref neo4j) = state.neo4j {
         match neo4j.get_global_graph().await {
             Ok(graph_data) => {
-                let nodes: Vec<serde_json::Value> = graph_data.nodes.iter().map(|n| {
-                    serde_json::json!({
-                        "id": n.id,
-                        "type": n.label.to_lowercase(),
-                        "label": n.properties.get("title").or(n.properties.get("name"))
-                            .and_then(|v| v.as_str()).unwrap_or(&n.id),
+                let nodes: Vec<serde_json::Value> = graph_data
+                    .nodes
+                    .iter()
+                    .map(|n| {
+                        serde_json::json!({
+                            "id": n.id,
+                            "type": n.label.to_lowercase(),
+                            "label": n.properties.get("title").or(n.properties.get("name"))
+                                .and_then(|v| v.as_str()).unwrap_or(&n.id),
+                        })
                     })
-                }).collect();
-                let edges: Vec<serde_json::Value> = graph_data.edges.iter().map(|e| {
-                    serde_json::json!({
-                        "source": e.source,
-                        "target": e.target,
-                        "type": e.relationship.to_lowercase(),
+                    .collect();
+                let edges: Vec<serde_json::Value> = graph_data
+                    .edges
+                    .iter()
+                    .map(|e| {
+                        serde_json::json!({
+                            "source": e.source,
+                            "target": e.target,
+                            "type": e.relationship.to_lowercase(),
+                        })
                     })
-                }).collect();
-                return Ok(ApiResponse::ok(serde_json::json!({ "nodes": nodes, "edges": edges })));
+                    .collect();
+                return Ok(ApiResponse::ok(
+                    serde_json::json!({ "nodes": nodes, "edges": edges }),
+                ));
             }
             Err(e) => {
                 tracing::warn!("Neo4j global graph query failed, falling back: {}", e);
@@ -889,7 +1085,9 @@ pub async fn get_global_graph(
         }
     }
 
-    Ok(ApiResponse::ok(serde_json::json!({ "nodes": nodes, "edges": edges })))
+    Ok(ApiResponse::ok(
+        serde_json::json!({ "nodes": nodes, "edges": edges }),
+    ))
 }
 
 pub async fn get_playbooks(
@@ -912,27 +1110,28 @@ pub async fn get_playbooks(
         None
     };
 
-    let ev_list = ev_list.unwrap_or_else(|| {
-        match state.evidence.read() {
-            Ok(evidence) => evidence.get(&id).cloned().unwrap_or_default(),
-            Err(_) => Vec::new(),
-        }
+    let ev_list = ev_list.unwrap_or_else(|| match state.evidence.read() {
+        Ok(evidence) => evidence.get(&id).cloned().unwrap_or_default(),
+        Err(_) => Vec::new(),
     });
 
     if ev_list.is_empty() {
         return Err(AppError::NotFound("No evidence found for incident".into()));
     }
 
-    let decision = state.decision.evaluate(&ev_list)
+    let decision = state
+        .decision
+        .evaluate(&ev_list)
         .map_err(|e| AppError::Internal(e.to_string()))?;
 
     let overall_confidence = decision.overall_confidence.score;
 
     if !state.policy.is_allowed(overall_confidence) {
         let reasons = state.policy.denied_reasons(overall_confidence);
-        return Err(AppError::BadRequest(
-            format!("Policy gate denied: {}", reasons.join("; "))
-        ));
+        return Err(AppError::BadRequest(format!(
+            "Policy gate denied: {}",
+            reasons.join("; ")
+        )));
     }
 
     let mut playbooks: Vec<serde_json::Value> = Vec::new();
@@ -1025,15 +1224,13 @@ pub async fn predict_next_steps(
     let incident = if let Some(ref pg) = state.pg_store {
         match pg.get_incident(&id).await {
             Ok(Some(i)) => i,
-            _ => {
-                match state.incidents.read() {
-                    Ok(incidents) => match incidents.get(&id) {
-                        Some(i) => i.clone(),
-                        None => return Err(AppError::NotFound("Incident not found".into())),
-                    },
-                    Err(_) => return Err(AppError::LockError),
-                }
-            }
+            _ => match state.incidents.read() {
+                Ok(incidents) => match incidents.get(&id) {
+                    Some(i) => i.clone(),
+                    None => return Err(AppError::NotFound("Incident not found".into())),
+                },
+                Err(_) => return Err(AppError::LockError),
+            },
         }
     } else {
         match state.incidents.read() {
@@ -1048,7 +1245,11 @@ pub async fn predict_next_steps(
     let evidence = if let Some(ref pg) = state.pg_store {
         pg.get_evidence(&id).await.unwrap_or_default()
     } else {
-        state.evidence.read().map(|m| m.get(&id).cloned().unwrap_or_default()).unwrap_or_default()
+        state
+            .evidence
+            .read()
+            .map(|m| m.get(&id).cloned().unwrap_or_default())
+            .unwrap_or_default()
     };
 
     let severity_str = match incident.severity {
@@ -1086,10 +1287,14 @@ pub async fn post_feedback(
         return Err(AppError::BadRequest("Invalid incident ID".into()));
     }
     if req.feedback.len() > 5000 {
-        return Err(AppError::BadRequest("Feedback must be 5000 characters or fewer".into()));
+        return Err(AppError::BadRequest(
+            "Feedback must be 5000 characters or fewer".into(),
+        ));
     }
     if req.rating > 5 {
-        return Err(AppError::BadRequest("Rating must be between 0 and 5".into()));
+        return Err(AppError::BadRequest(
+            "Rating must be between 0 and 5".into(),
+        ));
     }
 
     let now = std::time::SystemTime::now()
@@ -1102,23 +1307,28 @@ pub async fn post_feedback(
         if let Err(e) = pg.save_feedback(&id, &req.feedback, req.rating).await {
             tracing::warn!("Failed to persist feedback: {}", e);
         }
-    }
-
-    // In-memory feedback store
-    let entry = crate::state::FeedbackEntry {
-        feedback: req.feedback,
-        rating: req.rating,
-        created_at: now,
-    };
-    if let Ok(mut feedback_map) = state.feedback.write() {
-        feedback_map.entry(id.clone()).or_default().push(entry);
+    } else {
+        // In-memory feedback store — only when PgStore is not available
+        let entry = crate::state::FeedbackEntry {
+            feedback: req.feedback,
+            rating: req.rating,
+            created_at: now,
+        };
+        if let Ok(mut feedback_map) = state.feedback.write() {
+            feedback_map.entry(id.clone()).or_default().push(entry);
+        }
     }
 
     // Calculate average rating and update confidence signals
     let avg_rating = if let Some(ref pg) = state.pg_store {
-        pg.get_average_rating(&id).await.unwrap_or(None).unwrap_or(req.rating as f64)
+        pg.get_average_rating(&id)
+            .await
+            .unwrap_or(None)
+            .unwrap_or(req.rating as f64)
     } else {
-        let entries = state.feedback.read()
+        let entries = state
+            .feedback
+            .read()
             .map(|m| m.get(&id).cloned().unwrap_or_default())
             .unwrap_or_default();
         if entries.is_empty() {
@@ -1132,7 +1342,10 @@ pub async fn post_feedback(
     state.retrieval.set_feedback_signal(&id, avg_rating);
 
     tracing::info!(incident_id = %id, rating = req.rating, avg_rating, "Feedback recorded");
-    Ok(ApiResponse::ok(format!("Feedback recorded for incident {} (avg rating: {:.1}/5.0)", id, avg_rating)))
+    Ok(ApiResponse::ok(format!(
+        "Feedback recorded for incident {} (avg rating: {:.1}/5.0)",
+        id, avg_rating
+    )))
 }
 
 #[derive(Debug, Deserialize)]
@@ -1141,18 +1354,19 @@ pub struct StatusUpdateRequest {
 }
 
 fn valid_transition(from: &IncidentStatus, to: &IncidentStatus) -> bool {
-    matches!((from, to),
+    matches!(
+        (from, to),
         (IncidentStatus::New, IncidentStatus::Investigating)
-        | (IncidentStatus::New, IncidentStatus::Closed)
-        | (IncidentStatus::Investigating, IncidentStatus::Contained)
-        | (IncidentStatus::Investigating, IncidentStatus::Eradicated)
-        | (IncidentStatus::Investigating, IncidentStatus::Closed)
-        | (IncidentStatus::Contained, IncidentStatus::Eradicated)
-        | (IncidentStatus::Contained, IncidentStatus::Recovered)
-        | (IncidentStatus::Contained, IncidentStatus::Closed)
-        | (IncidentStatus::Eradicated, IncidentStatus::Recovered)
-        | (IncidentStatus::Eradicated, IncidentStatus::Closed)
-        | (IncidentStatus::Recovered, IncidentStatus::Closed)
+            | (IncidentStatus::New, IncidentStatus::Closed)
+            | (IncidentStatus::Investigating, IncidentStatus::Contained)
+            | (IncidentStatus::Investigating, IncidentStatus::Eradicated)
+            | (IncidentStatus::Investigating, IncidentStatus::Closed)
+            | (IncidentStatus::Contained, IncidentStatus::Eradicated)
+            | (IncidentStatus::Contained, IncidentStatus::Recovered)
+            | (IncidentStatus::Contained, IncidentStatus::Closed)
+            | (IncidentStatus::Eradicated, IncidentStatus::Recovered)
+            | (IncidentStatus::Eradicated, IncidentStatus::Closed)
+            | (IncidentStatus::Recovered, IncidentStatus::Closed)
     )
 }
 
@@ -1193,15 +1407,13 @@ pub async fn update_status(
     let mut incident = if let Some(ref pg) = state.pg_store {
         match pg.get_incident(&id).await {
             Ok(Some(i)) => i,
-            _ => {
-                match state.incidents.read() {
-                    Ok(incidents) => match incidents.get(&id) {
-                        Some(i) => i.clone(),
-                        None => return Err(AppError::NotFound("Incident not found".into())),
-                    },
-                    Err(_) => return Err(AppError::LockError),
-                }
-            }
+            _ => match state.incidents.read() {
+                Ok(incidents) => match incidents.get(&id) {
+                    Some(i) => i.clone(),
+                    None => return Err(AppError::NotFound("Incident not found".into())),
+                },
+                Err(_) => return Err(AppError::LockError),
+            },
         }
     } else {
         match state.incidents.read() {
@@ -1225,15 +1437,20 @@ pub async fn update_status(
     incident.status = new_status;
     incident.updated_at = chrono::Utc::now();
 
-    if let Ok(mut incidents) = state.incidents.write() {
-        incidents.insert(id.clone(), incident);
+    if state.pg_store.is_some() {
+        if let Some(ref pg) = state.pg_store {
+            if let Err(e) = pg
+                .update_incident_status(&id, format_status(&parse_status(&req.status)?))
+                .await
+            {
+                tracing::warn!("PgStore update_status failed: {}", e);
+            }
+        }
     } else {
-        return Err(AppError::LockError);
-    }
-
-    if let Some(ref pg) = state.pg_store {
-        if let Err(e) = pg.update_incident_status(&id, &format_status(&parse_status(&req.status)?)).await {
-            tracing::warn!("PgStore update_status failed: {}", e);
+        if let Ok(mut incidents) = state.incidents.write() {
+            incidents.insert(id.clone(), incident);
+        } else {
+            return Err(AppError::LockError);
         }
     }
 
@@ -1270,15 +1487,22 @@ pub async fn get_consolidation_stats(
         0
     };
 
-    let consolidated_count = memories.iter()
-        .filter(|m| m.version > 1)
-        .count();
+    let consolidated_count = memories.iter().filter(|m| m.version > 1).count();
+
+    let (total_consolidation_runs, last_consolidation) =
+        if let Ok(metrics) = state.worker_metrics.read() {
+            (metrics.consolidation_runs, metrics.last_consolidation)
+        } else {
+            (0, None)
+        };
 
     Ok(ApiResponse::ok(serde_json::json!({
         "total_memories": total_memories,
         "expired_purged": expired_count,
         "versions_pruned": total_versions,
         "memories_consolidated": consolidated_count,
+        "consolidation_runs": total_consolidation_runs,
+        "last_consolidation": last_consolidation.map(|dt| dt.to_rfc3339()),
         "ttl_config": {
             "critical": "365 days",
             "high": "180 days",

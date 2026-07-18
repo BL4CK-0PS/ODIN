@@ -70,7 +70,12 @@ impl RedisClient {
         }
     }
 
-    pub async fn set(&self, key: &str, value: &str, ttl_secs: Option<u64>) -> Result<(), KernelError> {
+    pub async fn set(
+        &self,
+        key: &str,
+        value: &str,
+        ttl_secs: Option<u64>,
+    ) -> Result<(), KernelError> {
         if let Some(ref conn) = self.client {
             let mut conn = conn.clone();
             let mut cmd = redis::cmd("SET");
@@ -88,14 +93,18 @@ impl RedisClient {
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
                 .unwrap_or_default()
-                .as_secs() + ttl
+                .as_secs()
+                + ttl
         });
 
         let mut cache = self.memory.write().await;
-        cache.insert(key.to_string(), CacheEntry {
-            value: value.to_string(),
-            expires_at,
-        });
+        cache.insert(
+            key.to_string(),
+            CacheEntry {
+                value: value.to_string(),
+                expires_at,
+            },
+        );
         Ok(())
     }
 

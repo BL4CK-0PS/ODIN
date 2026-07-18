@@ -8,15 +8,26 @@ import { ConfidenceHistogram } from "@/components/charts/ConfidenceHistogram";
 import { DiffCard } from "@/components/DiffCard";
 import { useThreatMemories } from "@/hooks/use-threat-memory";
 import { useQuery } from "@tanstack/react-query";
-import { api } from "@/lib/api";
+import { clientApi } from "@/lib/api";
 import { Archive, Trash2, GitCompare, TimerOff, AlertCircle, Activity } from "lucide-react";
+
+function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  if (mins < 1) return "Just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
 
 export default function ConsolidationPage() {
   const { data: memories, isLoading: memoriesLoading } = useThreatMemories();
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["consolidation-stats"],
-    queryFn: () => api.getConsolidationStats(),
+    queryFn: () => clientApi.getConsolidationStats(),
     retry: 1,
     staleTime: 30_000,
   });
@@ -39,7 +50,14 @@ export default function ConsolidationPage() {
           { label: "Expired Purged", value: stats?.expired_purged ?? 0, icon: Trash2, style: "bg-red-500/10 text-red-500" },
           { label: "Versions Pruned", value: stats?.versions_pruned ?? 0, icon: TimerOff, style: "bg-amber-500/10 text-amber-500" },
           { label: "Consolidated", value: stats?.memories_consolidated ?? 0, icon: GitCompare, style: "bg-green-500/10 text-green-500" },
-          { label: "Last Run", value: "1h ago", icon: Archive, style: "bg-purple-500/10 text-purple-500" },
+          {
+            label: "Last Run",
+            value: stats?.last_consolidation
+              ? formatRelativeTime(stats.last_consolidation)
+              : "Never",
+            icon: Archive,
+            style: "bg-purple-500/10 text-purple-500"
+          },
         ].map(({ label, value, icon: Icon, style }) => (
           <Card key={label}>
             <CardHeader className="flex-row items-center gap-3 space-y-0 pb-2">

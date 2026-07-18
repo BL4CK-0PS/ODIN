@@ -1,6 +1,6 @@
 use odin_kernel::{CanonicalIncident, MemoryObject};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap, HashSet};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HybridScore {
@@ -18,7 +18,8 @@ impl StructuralScorer {
     }
 
     pub fn score(&self, query: &CanonicalIncident, candidate: &MemoryObject) -> f64 {
-        let query_techniques: HashSet<&str> = query.mitre_techniques.iter().map(String::as_str).collect();
+        let query_techniques: HashSet<&str> =
+            query.mitre_techniques.iter().map(String::as_str).collect();
         let candidate_techniques: HashSet<&str> = self.extract_techniques(candidate);
         let technique_overlap = if query_techniques.is_empty() {
             0.0
@@ -75,7 +76,9 @@ impl SemanticScorer {
         }
 
         let candidate_summary = &candidate.summary;
-        let candidate_context = candidate.context.get("text_description")
+        let candidate_context = candidate
+            .context
+            .get("text_description")
             .and_then(|v| v.as_str())
             .unwrap_or("");
         let candidate_text = format!("{} {}", candidate_summary, candidate_context);
@@ -87,10 +90,18 @@ impl SemanticScorer {
         let query_freq = self.term_frequency(&query_tokens);
         let candidate_freq = self.term_frequency(&candidate_tokens);
 
-        let all_terms: HashSet<&str> = query_freq.keys().chain(candidate_freq.keys()).copied().collect();
+        let all_terms: HashSet<&str> = query_freq
+            .keys()
+            .chain(candidate_freq.keys())
+            .copied()
+            .collect();
         let epsilon = 1e-10;
-        let dot: f64 = all_terms.iter()
-            .map(|t| query_freq.get(t).copied().unwrap_or(epsilon) * candidate_freq.get(t).copied().unwrap_or(epsilon))
+        let dot: f64 = all_terms
+            .iter()
+            .map(|t| {
+                query_freq.get(t).copied().unwrap_or(epsilon)
+                    * candidate_freq.get(t).copied().unwrap_or(epsilon)
+            })
             .sum();
         let q_mag: f64 = query_freq.values().map(|v| v * v).sum::<f64>().sqrt();
         let c_mag: f64 = candidate_freq.values().map(|v| v * v).sum::<f64>().sqrt();
@@ -108,14 +119,16 @@ impl SemanticScorer {
     fn tokenize(&self, text: &str) -> Vec<String> {
         text.split(|c: char| !c.is_alphanumeric() && c != '\'' && c != '-')
             .map(|w| w.trim().to_lowercase())
-            .filter(|w| w.len() >= 3 && !STOP_WORDS.iter().any(|s| *s == w.as_str()))
+            .filter(|w| w.len() >= 3 && !STOP_WORDS.contains(&w.as_str()))
             .collect()
     }
 
     fn term_frequency<'a>(&self, tokens: &'a [String]) -> HashMap<&'a str, f64> {
         let mut freq: HashMap<&str, f64> = HashMap::new();
         let total = tokens.len() as f64;
-        if total == 0.0 { return freq; }
+        if total == 0.0 {
+            return freq;
+        }
         for t in tokens {
             *freq.entry(t.as_str()).or_insert(0.0) += 1.0;
         }
@@ -130,7 +143,11 @@ impl SemanticScorer {
         let set_b: HashSet<&str> = b.iter().map(String::as_str).collect();
         let intersection = set_a.intersection(&set_b).count();
         let union = set_a.union(&set_b).count();
-        if union == 0 { 0.0 } else { intersection as f64 / union as f64 }
+        if union == 0 {
+            0.0
+        } else {
+            intersection as f64 / union as f64
+        }
     }
 }
 
@@ -141,9 +158,8 @@ impl Default for SemanticScorer {
 }
 
 const STOP_WORDS: &[&str] = &[
-    "the", "and", "for", "are", "but", "not", "you", "all", "can", "had",
-    "her", "was", "one", "our", "out", "has", "have", "been", "some", "them",
-    "than", "that", "this", "very", "just", "with", "will", "each", "make",
-    "like", "from", "they", "been", "said", "what", "when", "where", "which",
-    "their", "there", "would", "about", "into", "over", "such", "also",
+    "the", "and", "for", "are", "but", "not", "you", "all", "can", "had", "her", "was", "one",
+    "our", "out", "has", "have", "been", "some", "them", "than", "that", "this", "very", "just",
+    "with", "will", "each", "make", "like", "from", "they", "been", "said", "what", "when",
+    "where", "which", "their", "there", "would", "about", "into", "over", "such", "also",
 ];

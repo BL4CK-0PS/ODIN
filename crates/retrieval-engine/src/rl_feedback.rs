@@ -79,30 +79,31 @@ impl RLFeedbackLoop {
         self.update_q_value(query_id, action, reward);
         self.total_updates += 1;
 
-        if self.total_updates % 100 == 0 {
+        if self.total_updates.is_multiple_of(100) {
             self.decay_exploration();
         }
     }
 
     fn update_q_value(&mut self, state: &str, action: &str, reward: f64) {
-        let state_q = self.q_table.entry(state.to_string()).or_insert_with(HashMap::new);
+        let state_q = self.q_table.entry(state.to_string()).or_default();
         let current_q = state_q.get(action).copied().unwrap_or(0.0);
 
-        let max_next_q = state_q.values()
-            .cloned()
-            .fold(f64::NEG_INFINITY, f64::max);
-        let max_next_q = if max_next_q == f64::NEG_INFINITY { 0.0 } else { max_next_q };
+        let max_next_q = state_q.values().cloned().fold(f64::NEG_INFINITY, f64::max);
+        let max_next_q = if max_next_q == f64::NEG_INFINITY {
+            0.0
+        } else {
+            max_next_q
+        };
 
-        let new_q = current_q + self.learning_rate * (
-            reward + self.discount_factor * max_next_q - current_q
-        );
+        let new_q = current_q
+            + self.learning_rate * (reward + self.discount_factor * max_next_q - current_q);
 
         state_q.insert(action.to_string(), new_q);
     }
 
     fn decay_exploration(&mut self) {
-        self.exploration_rate = (self.exploration_rate * self.exploration_decay)
-            .max(self.min_exploration);
+        self.exploration_rate =
+            (self.exploration_rate * self.exploration_decay).max(self.min_exploration);
     }
 
     pub fn should_explore(&self) -> bool {
@@ -118,13 +119,12 @@ impl RLFeedbackLoop {
     }
 
     pub fn get_best_action(&self, state: &str) -> Option<String> {
-        self.q_table
-            .get(state)
-            .and_then(|actions| {
-                actions.iter()
-                    .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
-                    .map(|(action, _)| action.clone())
-            })
+        self.q_table.get(state).and_then(|actions| {
+            actions
+                .iter()
+                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
+                .map(|(action, _)| action.clone())
+        })
     }
 
     pub fn compute_adaptive_weights(
@@ -142,12 +142,15 @@ impl RLFeedbackLoop {
         let base_feedback = 0.15;
 
         let feedback_boost = if !self.replay_buffer.is_empty() {
-            let recent_rewards: Vec<f64> = self.replay_buffer.iter()
+            let recent_rewards: Vec<f64> = self
+                .replay_buffer
+                .iter()
                 .rev()
                 .take(100)
                 .map(|e| e.reward)
                 .collect();
-            let avg_reward = recent_rewards.iter().sum::<f64>() / recent_rewards.len().max(1) as f64;
+            let avg_reward =
+                recent_rewards.iter().sum::<f64>() / recent_rewards.len().max(1) as f64;
             (avg_reward / 5.0).clamp(0.0, 1.0) * 0.1
         } else {
             0.0
@@ -210,7 +213,9 @@ impl RLFeedbackLoop {
                 / self.replay_buffer.len() as f64
         };
 
-        let recent_rewards: Vec<f64> = self.replay_buffer.iter()
+        let recent_rewards: Vec<f64> = self
+            .replay_buffer
+            .iter()
             .rev()
             .take(100)
             .map(|e| e.reward)

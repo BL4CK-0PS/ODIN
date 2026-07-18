@@ -1,4 +1,6 @@
-use crate::{Confidence, ConfidenceSource, IntelligenceObject, KernelError, Provenance, SourceType};
+use crate::{
+    Confidence, ConfidenceSource, IntelligenceObject, KernelError, Provenance, SourceType,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -63,6 +65,64 @@ impl IntelligenceObject for Entity {
     }
 
     fn provenance(&self) -> Provenance {
-        Provenance::new(self.name.clone(), SourceType::Other("entity".into()), "system".into())
+        Provenance::new(
+            self.name.clone(),
+            SourceType::Other("entity".into()),
+            "system".into(),
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn new_entity_has_uuid() {
+        let ent = Entity::new("evil.com".into(), EntityType::Domain, serde_json::json!({}));
+        assert!(!ent.id.is_empty());
+        assert_eq!(ent.name, "evil.com");
+        assert!(matches!(ent.entity_type, EntityType::Domain));
+    }
+
+    #[test]
+    fn validate_rejects_empty_name() {
+        let ent = Entity::new("".into(), EntityType::IpAddress, serde_json::json!({}));
+        assert!(ent.validate().is_err());
+    }
+
+    #[test]
+    fn validate_rejects_whitespace_name() {
+        let ent = Entity::new("   ".into(), EntityType::File, serde_json::json!({}));
+        assert!(ent.validate().is_err());
+    }
+
+    #[test]
+    fn validate_accepts_valid_entity() {
+        let ent = Entity::new(
+            "10.0.0.1".into(),
+            EntityType::IpAddress,
+            serde_json::json!({}),
+        );
+        assert!(ent.validate().is_ok());
+    }
+
+    #[test]
+    fn entity_confidence_is_0_97() {
+        let ent = Entity::new("test".into(), EntityType::Process, serde_json::json!({}));
+        assert_eq!(ent.confidence().score, 0.97);
+    }
+
+    #[test]
+    fn serialization_roundtrip() {
+        let ent = Entity::new(
+            "test.exe".into(),
+            EntityType::File,
+            serde_json::json!({"path": "/tmp"}),
+        );
+        let json = serde_json::to_string(&ent).unwrap();
+        let deserialized: Entity = serde_json::from_str(&json).unwrap();
+        assert_eq!(ent.id, deserialized.id);
+        assert_eq!(ent.name, deserialized.name);
     }
 }

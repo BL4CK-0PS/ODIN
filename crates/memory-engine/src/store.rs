@@ -34,17 +34,31 @@ impl MemoryStore for InMemoryStore {
     fn save(&self, memory: MemoryObject) -> Result<(), KernelError> {
         let incident_id = memory.incident_id.clone();
         let memory_id = memory.id.clone();
-        self.objects.write().map_err(|e| KernelError::Internal(e.to_string()))?.insert(memory_id.clone(), memory);
-        self.by_incident.write().map_err(|e| KernelError::Internal(e.to_string()))?.insert(incident_id, memory_id);
+        self.objects
+            .write()
+            .map_err(|e| KernelError::Internal(e.to_string()))?
+            .insert(memory_id.clone(), memory);
+        self.by_incident
+            .write()
+            .map_err(|e| KernelError::Internal(e.to_string()))?
+            .insert(incident_id, memory_id);
         Ok(())
     }
 
     fn find_by_id(&self, id: &str) -> Result<Option<MemoryObject>, KernelError> {
-        Ok(self.objects.read().map_err(|e| KernelError::Internal(e.to_string()))?.get(id).cloned())
+        Ok(self
+            .objects
+            .read()
+            .map_err(|e| KernelError::Internal(e.to_string()))?
+            .get(id)
+            .cloned())
     }
 
     fn find_by_incident_id(&self, incident_id: &str) -> Result<Option<MemoryObject>, KernelError> {
-        let by_incident = self.by_incident.read().map_err(|e| KernelError::Internal(e.to_string()))?;
+        let by_incident = self
+            .by_incident
+            .read()
+            .map_err(|e| KernelError::Internal(e.to_string()))?;
         if let Some(memory_id) = by_incident.get(incident_id) {
             self.find_by_id(memory_id)
         } else {
@@ -53,23 +67,44 @@ impl MemoryStore for InMemoryStore {
     }
 
     fn list_all(&self) -> Result<Vec<MemoryObject>, KernelError> {
-        Ok(self.objects.read().map_err(|e| KernelError::Internal(e.to_string()))?.values().cloned().collect())
+        Ok(self
+            .objects
+            .read()
+            .map_err(|e| KernelError::Internal(e.to_string()))?
+            .values()
+            .cloned()
+            .collect())
     }
 
     fn save_version(&self, version: MemoryVersion) -> Result<(), KernelError> {
         let memory_id = version.memory.id.clone();
-        let mut versions = self.versions.write().map_err(|e| KernelError::Internal(e.to_string()))?;
+        let mut versions = self
+            .versions
+            .write()
+            .map_err(|e| KernelError::Internal(e.to_string()))?;
         versions.entry(memory_id).or_default().push(version);
         Ok(())
     }
 
     fn get_versions(&self, memory_id: &str) -> Result<Vec<MemoryVersion>, KernelError> {
-        Ok(self.versions.read().map_err(|e| KernelError::Internal(e.to_string()))?.get(memory_id).cloned().unwrap_or_default())
+        Ok(self
+            .versions
+            .read()
+            .map_err(|e| KernelError::Internal(e.to_string()))?
+            .get(memory_id)
+            .cloned()
+            .unwrap_or_default())
     }
 
     fn purge_expired(&self) -> Result<Vec<String>, KernelError> {
-        let mut objects = self.objects.write().map_err(|e| KernelError::Internal(e.to_string()))?;
-        let mut by_incident = self.by_incident.write().map_err(|e| KernelError::Internal(e.to_string()))?;
+        let mut objects = self
+            .objects
+            .write()
+            .map_err(|e| KernelError::Internal(e.to_string()))?;
+        let mut by_incident = self
+            .by_incident
+            .write()
+            .map_err(|e| KernelError::Internal(e.to_string()))?;
         let now = chrono::Utc::now();
         let mut purged = Vec::new();
         objects.retain(|id, obj| {
@@ -86,7 +121,10 @@ impl MemoryStore for InMemoryStore {
     }
 
     fn prune_versions(&self, memory_id: &str, max_versions: usize) -> Result<usize, KernelError> {
-        let mut versions = self.versions.write().map_err(|e| KernelError::Internal(e.to_string()))?;
+        let mut versions = self
+            .versions
+            .write()
+            .map_err(|e| KernelError::Internal(e.to_string()))?;
         if let Some(v) = versions.get_mut(memory_id) {
             if v.len() <= max_versions {
                 return Ok(0);

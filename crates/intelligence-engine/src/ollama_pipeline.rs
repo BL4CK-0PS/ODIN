@@ -10,7 +10,10 @@ impl OllamaPipeline {
         Self { client }
     }
 
-    pub async fn analyze_evidence(&self, evidence: &[Evidence]) -> Result<OllamaAnalysis, KernelError> {
+    pub async fn analyze_evidence(
+        &self,
+        evidence: &[Evidence],
+    ) -> Result<OllamaAnalysis, KernelError> {
         let evidence_text: String = evidence
             .iter()
             .map(|e| format!("[Source: {}]\n{}", e.source, e.content))

@@ -75,8 +75,6 @@ jobs:
     env:
       DATABASE_URL: postgresql://odin:odin@localhost:5432/odin_test
       REDIS_URL: redis://localhost:6379
-      JWT_SECRET: test-secret-key-for-ci-only
-      ODIN_ADMIN_PASSWORD: test-password-for-ci
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
@@ -104,6 +102,8 @@ jobs:
         run: npm ci
       - name: Lint
         run: npm run lint
+      - name: Test
+        run: npm run test
       - name: Build
         run: npm run build
         env:

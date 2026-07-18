@@ -17,27 +17,23 @@ impl BackgroundWorker {
         let (tx, mut rx) = mpsc::channel::<WorkerTask>(32);
 
         tokio::spawn(async move {
-            let mut consolidation_interval = tokio::time::interval(
-                std::time::Duration::from_secs(
-                    std::env::var("ODIN_CONSOLIDATION_INTERVAL_SECS")
-                        .ok()
-                        .and_then(|s| s.parse().ok())
-                        .unwrap_or(3600)
-                )
-            );
+            let mut consolidation_interval = tokio::time::interval(std::time::Duration::from_secs(
+                std::env::var("ODIN_CONSOLIDATION_INTERVAL_SECS")
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(3600),
+            ));
             consolidation_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
-
-            let mut metrics = WorkerMetrics::default();
 
             loop {
                 tokio::select! {
                     _ = consolidation_interval.tick() => {
-                        Self::run_consolidation(&state, &mut metrics).await;
+                        Self::run_consolidation(&state).await;
                     }
                     task = rx.recv() => {
                         match task {
                             Some(WorkerTask::Consolidation) => {
-                                Self::run_consolidation(&state, &mut metrics).await;
+                                Self::run_consolidation(&state).await;
                             }
                             Some(WorkerTask::Custom(name)) => {
                                 tracing::info!("Running custom worker task: {}", name);
@@ -55,10 +51,7 @@ impl BackgroundWorker {
         Self { tx }
     }
 
-    async fn run_consolidation(
-        state: &Arc<crate::state::AppState>,
-        metrics: &mut WorkerMetrics,
-    ) {
+    async fn run_consolidation(state: &Arc<crate::state::AppState>) {
         tracing::info!("Worker: running memory consolidation...");
         let start = std::time::Instant::now();
 
@@ -74,15 +67,19 @@ impl BackgroundWorker {
                         report.consolidated_memories.len(),
                     );
                 }
-                metrics.consolidation_runs += 1;
-                metrics.total_expired += report.expired_count;
-                metrics.total_pruned += report.pruned_version_count;
-                metrics.total_consolidated += report.consolidated_memories.len();
-                metrics.last_consolidation = Some(chrono::Utc::now());
+                if let Ok(mut metrics) = state.worker_metrics.write() {
+                    metrics.consolidation_runs += 1;
+                    metrics.total_expired += report.expired_count;
+                    metrics.total_pruned += report.pruned_version_count;
+                    metrics.total_consolidated += report.consolidated_memories.len();
+                    metrics.last_consolidation = Some(chrono::Utc::now());
+                }
             }
             Err(e) => {
                 tracing::error!("Consolidation failed: {}", e);
-                metrics.consolidation_failures += 1;
+                if let Ok(mut metrics) = state.worker_metrics.write() {
+                    metrics.consolidation_failures += 1;
+                }
             }
         }
     }
@@ -98,7 +95,7 @@ impl BackgroundWorker {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct WorkerMetrics {
     pub consolidation_runs: u64,
     pub consolidation_failures: u64,

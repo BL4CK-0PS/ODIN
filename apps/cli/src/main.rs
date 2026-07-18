@@ -2,7 +2,10 @@ use clap::{Parser, Subcommand};
 use odin_core::Odin;
 
 #[derive(Parser)]
-#[command(name = "odin", about = "ODIN - Operational Defense Intelligence Network")]
+#[command(
+    name = "odin",
+    about = "ODIN - Operational Defense Intelligence Network"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -53,8 +56,15 @@ async fn main() {
             match odin.memory.list_all() {
                 Ok(memories) => {
                     for m in &memories {
-                        let title = m.context.get("title").and_then(|v| v.as_str()).unwrap_or("Untitled");
-                        println!("  {} | {} (confidence: {:.2})", m.incident_id, title, m.confidence);
+                        let title = m
+                            .context
+                            .get("title")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or("Untitled");
+                        println!(
+                            "  {} | {} (confidence: {:.2})",
+                            m.incident_id, title, m.confidence
+                        );
                     }
                     if memories.is_empty() {
                         println!("  No incidents found.");
@@ -68,8 +78,13 @@ async fn main() {
             match odin.memory.list_all() {
                 Ok(memories) => {
                     for m in &memories {
-                        println!("  {} | v{} | summary: {} | confidence: {:.2}",
-                            m.id, m.version, &m.summary[..m.summary.len().min(60)], m.confidence);
+                        println!(
+                            "  {} | v{} | summary: {} | confidence: {:.2}",
+                            m.id,
+                            m.version,
+                            &m.summary[..m.summary.len().min(60)],
+                            m.confidence
+                        );
                     }
                     if memories.is_empty() {
                         println!("  No memory objects found.");
@@ -79,7 +94,10 @@ async fn main() {
             }
         }
         Commands::Search { incident_id, top_k } => {
-            println!("Searching for incidents similar to {} (top {})...", incident_id, top_k);
+            println!(
+                "Searching for incidents similar to {} (top {})...",
+                incident_id, top_k
+            );
             println!("Note: Full search requires the API server running with data in memory.");
             println!("Use the API endpoint POST /api/v1/incidents/search instead.");
         }

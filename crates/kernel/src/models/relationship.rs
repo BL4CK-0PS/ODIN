@@ -1,4 +1,6 @@
-use crate::{Confidence, ConfidenceSource, IntelligenceObject, KernelError, Provenance, SourceType};
+use crate::{
+    Confidence, ConfidenceSource, IntelligenceObject, KernelError, Provenance, SourceType,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 

@@ -1,12 +1,15 @@
-use odin_core::odin_kernel::{CanonicalIncident, Evidence, Entity, KernelError};
+use crate::worker::WorkerMetrics;
+use odin_core::odin_decision_engine::DecisionEngine;
+use odin_core::odin_infrastructure::{
+    ArtifactStore, InfrastructureConfig, Neo4jClient, OllamaClient, RedisClient, S3Client,
+};
+use odin_core::odin_intelligence_engine::{IntelligenceEngine, OllamaPipeline};
+use odin_core::odin_kernel::{CanonicalIncident, Entity, Evidence, KernelError};
+use odin_core::odin_memory_engine::{ConsolidationConfig, MemoryEngine, PgStore};
+use odin_core::odin_policy_gate::PolicyGate;
+use odin_core::odin_retrieval_engine::{QdrantClient, RetrievalEngine};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
-use odin_core::odin_memory_engine::{ConsolidationConfig, MemoryEngine, PgStore};
-use odin_core::odin_intelligence_engine::{IntelligenceEngine, OllamaPipeline};
-use odin_core::odin_retrieval_engine::{RetrievalEngine, QdrantClient};
-use odin_core::odin_decision_engine::DecisionEngine;
-use odin_core::odin_policy_gate::PolicyGate;
-use odin_core::odin_infrastructure::{InfrastructureConfig, OllamaClient, RedisClient, Neo4jClient, JwtService, AuditLogger};
 
 pub type IncidentMap = Arc<RwLock<HashMap<String, CanonicalIncident>>>;
 pub type EvidenceMap = Arc<RwLock<HashMap<String, Vec<Evidence>>>>;
@@ -35,8 +38,9 @@ pub struct AppState {
     pub ollama_client: Option<OllamaClient>,
     pub redis: Option<RedisClient>,
     pub neo4j: Option<Neo4jClient>,
-    pub jwt_service: JwtService,
-    pub audit_logger: AuditLogger,
+    pub s3: Option<S3Client>,
+    pub artifact_store: ArtifactStore,
+    pub worker_metrics: std::sync::Arc<std::sync::RwLock<WorkerMetrics>>,
     #[allow(dead_code)]
     pub infra_config: InfrastructureConfig,
 }
@@ -53,9 +57,9 @@ impl AppState {
         let pg_store = None;
         let qdrant = None;
 
-        let ollama_pipeline = ollama_client.as_ref().map(|oc| {
-            OllamaPipeline::new(oc.clone())
-        });
+        let ollama_pipeline = ollama_client
+            .as_ref()
+            .map(|oc| OllamaPipeline::new(oc.clone()));
 
         Self {
             incidents: Arc::new(RwLock::new(HashMap::new())),
@@ -63,12 +67,10 @@ impl AppState {
             entities: Arc::new(RwLock::new(HashMap::new())),
             feedback: Arc::new(RwLock::new(HashMap::new())),
             memory: MemoryEngine::new(),
-            intelligence: Arc::new(RwLock::new(
-                match ollama_pipeline {
-                    Some(ollama) => IntelligenceEngine::with_ollama(ollama),
-                    None => IntelligenceEngine::new(),
-                }
-            )),
+            intelligence: Arc::new(RwLock::new(match ollama_pipeline {
+                Some(ollama) => IntelligenceEngine::with_ollama(ollama),
+                None => IntelligenceEngine::new(),
+            })),
             retrieval: RetrievalEngine::new(),
             decision: DecisionEngine::new(),
             policy: PolicyGate::new(),
@@ -77,19 +79,22 @@ impl AppState {
             ollama_client,
             redis: None,
             neo4j: None,
-            jwt_service: JwtService::new(
-                &std::env::var("JWT_SECRET").unwrap_or_else(|_| {
-                    tracing::warn!("JWT_SECRET not set, using default (change in production!)");
-                    "odin-dev-secret-do-not-use-in-production".to_string()
-                })
-            ),
-            audit_logger: AuditLogger::new(10000),
+            s3: None,
+            artifact_store: ArtifactStore::new(None),
+            worker_metrics: std::sync::Arc::new(std::sync::RwLock::new(WorkerMetrics::default())),
             infra_config: config,
         }
     }
 
     pub async fn connect_database(&mut self) {
         let config = InfrastructureConfig::from_env();
+
+        if config.is_dev_defaults() {
+            tracing::warn!(
+                "Running with default localhost URLs — this is a development configuration, NOT production"
+            );
+        }
+
         let ollama_client = OllamaClient::new(
             &config.ollama_url,
             &config.ollama_embed_model,
@@ -134,9 +139,7 @@ impl AppState {
                         let t = text.to_string();
                         tokio::runtime::Handle::try_current()
                             .unwrap()
-                            .block_on(async move {
-                                client.generate_embedding(&t).await
-                            })
+                            .block_on(async move { client.generate_embedding(&t).await })
                     }),
                 );
                 self.qdrant = Some(qdrant);
@@ -159,7 +162,13 @@ impl AppState {
             }
         }
 
-        match Neo4jClient::new(&config.neo4j_url, &config.neo4j_user, &config.neo4j_password).await {
+        match Neo4jClient::new(
+            &config.neo4j_url,
+            &config.neo4j_user,
+            &config.neo4j_password,
+        )
+        .await
+        {
             Ok(client) => {
                 self.neo4j = Some(client);
                 tracing::info!("Neo4j connected");
@@ -167,6 +176,21 @@ impl AppState {
             Err(e) => {
                 tracing::warn!("Neo4j not available, using in-memory graph: {}", e);
             }
+        }
+
+        let s3 = S3Client::new(
+            &config.s3_endpoint,
+            &config.s3_bucket,
+            &config.s3_access_key,
+            &config.s3_secret_key,
+        );
+        if s3.health_check().await {
+            self.s3 = Some(s3.clone());
+            self.artifact_store = ArtifactStore::new(Some(s3));
+            tracing::info!("S3/MinIO connected");
+        } else {
+            self.artifact_store = ArtifactStore::new(None);
+            tracing::warn!("S3 not available, using local artifact cache");
         }
     }
 }

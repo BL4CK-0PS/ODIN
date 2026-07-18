@@ -68,3 +68,68 @@ impl Recommendation {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn contain_high_confidence_priority_is_1() {
+        let sources = vec![ConfidenceSource {
+            label: "a".into(),
+            trust: 0.95,
+        }];
+        let rec = Recommendation::new(
+            RecommendationKind::Contain,
+            "T".into(),
+            "D".into(),
+            vec![],
+            sources,
+        );
+        assert_eq!(rec.priority, 1);
+    }
+
+    #[test]
+    fn contain_low_confidence_priority_is_3() {
+        let sources = vec![ConfidenceSource {
+            label: "a".into(),
+            trust: 0.4,
+        }];
+        let rec = Recommendation::new(
+            RecommendationKind::Contain,
+            "T".into(),
+            "D".into(),
+            vec![],
+            sources,
+        );
+        assert_eq!(rec.priority, 3);
+    }
+
+    #[test]
+    fn investigate_medium_confidence_priority_is_4() {
+        let sources = vec![ConfidenceSource {
+            label: "a".into(),
+            trust: 0.6,
+        }];
+        let rec = Recommendation::new(
+            RecommendationKind::Investigate,
+            "T".into(),
+            "D".into(),
+            vec![],
+            sources,
+        );
+        assert_eq!(rec.priority, 4);
+    }
+
+    #[test]
+    fn decision_serialization_roundtrip() {
+        let decision = Decision {
+            recommendations: vec![],
+            overall_confidence: Confidence::default(),
+            supporting_evidence: vec!["ev-1".into()],
+        };
+        let json = serde_json::to_string(&decision).unwrap();
+        let deserialized: Decision = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.supporting_evidence[0], "ev-1");
+    }
+}

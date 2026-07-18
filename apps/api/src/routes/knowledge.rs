@@ -6,9 +6,7 @@ use axum::{
     http::StatusCode,
     Json,
 };
-use odin_core::odin_kernel::{
-    KnowledgeObject, KnowledgeStatus, KnowledgeType,
-};
+use odin_core::odin_kernel::{KnowledgeObject, KnowledgeStatus, KnowledgeType};
 use serde::Deserialize;
 use std::sync::Arc;
 
@@ -84,7 +82,8 @@ pub async fn create_knowledge_object(
     }
 
     if let Some(ref pg) = state.pg_store {
-        pg.save_knowledge_object(&obj).await
+        pg.save_knowledge_object(&obj)
+            .await
             .map_err(|e| AppError::BadRequest(format!("Failed to save: {}", e)))?;
     }
 
@@ -107,7 +106,8 @@ pub async fn get_knowledge_object(
     }
 
     let obj = if let Some(ref pg) = state.pg_store {
-        pg.get_knowledge_object(&id).await
+        pg.get_knowledge_object(&id)
+            .await
             .map_err(|e| AppError::BadRequest(format!("Failed to get: {}", e)))?
             .ok_or_else(|| AppError::NotFound("Knowledge object not found".into()))?
     } else {
@@ -144,7 +144,8 @@ pub async fn update_knowledge_object(
     }
 
     let mut obj = if let Some(ref pg) = state.pg_store {
-        pg.get_knowledge_object(&id).await
+        pg.get_knowledge_object(&id)
+            .await
             .map_err(|e| AppError::BadRequest(format!("Failed to get: {}", e)))?
             .ok_or_else(|| AppError::NotFound("Knowledge object not found".into()))?
     } else {
@@ -152,7 +153,9 @@ pub async fn update_knowledge_object(
     };
 
     if !obj.is_editable() {
-        return Err(AppError::BadRequest("Object is not in an editable state".into()));
+        return Err(AppError::BadRequest(
+            "Object is not in an editable state".into(),
+        ));
     }
 
     if let Some(title) = req.title {
@@ -173,7 +176,8 @@ pub async fn update_knowledge_object(
     obj.updated_at = chrono::Utc::now();
 
     if let Some(ref pg) = state.pg_store {
-        pg.save_knowledge_object(&obj).await
+        pg.save_knowledge_object(&obj)
+            .await
             .map_err(|e| AppError::BadRequest(format!("Failed to update: {}", e)))?;
     }
 
@@ -195,7 +199,8 @@ pub async fn transition_knowledge_object(
     }
 
     let mut obj = if let Some(ref pg) = state.pg_store {
-        pg.get_knowledge_object(&id).await
+        pg.get_knowledge_object(&id)
+            .await
             .map_err(|e| AppError::BadRequest(format!("Failed to get: {}", e)))?
             .ok_or_else(|| AppError::NotFound("Knowledge object not found".into()))?
     } else {
@@ -216,7 +221,8 @@ pub async fn transition_knowledge_object(
         .map_err(|e| AppError::BadRequest(format!("Transition failed: {}", e)))?;
 
     if let Some(ref pg) = state.pg_store {
-        pg.save_knowledge_object(&obj).await
+        pg.save_knowledge_object(&obj)
+            .await
             .map_err(|e| AppError::BadRequest(format!("Failed to save transition: {}", e)))?;
     }
 
@@ -247,22 +253,28 @@ pub async fn list_knowledge_objects(
             query.object_type.as_deref(),
             limit,
             offset,
-        ).await
+        )
+        .await
         .map_err(|e| AppError::BadRequest(format!("Failed to list: {}", e)))?
     } else {
         return Err(AppError::NotFound("Knowledge store not available".into()));
     };
 
-    let items: Vec<serde_json::Value> = objects.iter().map(|obj| serde_json::json!({
-        "id": obj.id,
-        "title": obj.title,
-        "description": obj.description,
-        "object_type": format!("{:?}", obj.object_type),
-        "status": format!("{:?}", obj.status),
-        "tags": obj.tags,
-        "created_by": obj.created_by,
-        "updated_at": obj.updated_at,
-    })).collect();
+    let items: Vec<serde_json::Value> = objects
+        .iter()
+        .map(|obj| {
+            serde_json::json!({
+                "id": obj.id,
+                "title": obj.title,
+                "description": obj.description,
+                "object_type": format!("{:?}", obj.object_type),
+                "status": format!("{:?}", obj.status),
+                "tags": obj.tags,
+                "created_by": obj.created_by,
+                "updated_at": obj.updated_at,
+            })
+        })
+        .collect();
 
     Ok(ApiResponse::ok(serde_json::json!({
         "items": items,
@@ -281,7 +293,8 @@ pub async fn delete_knowledge_object(
     }
 
     if let Some(ref pg) = state.pg_store {
-        pg.delete_knowledge_object(&id).await
+        pg.delete_knowledge_object(&id)
+            .await
             .map_err(|e| AppError::BadRequest(format!("Failed to delete: {}", e)))?;
     }
 
@@ -292,9 +305,7 @@ pub async fn search_knowledge_objects(
     State(state): State<Arc<AppState>>,
     Json(req): Json<serde_json::Value>,
 ) -> Result<(StatusCode, Json<ApiResponse<serde_json::Value>>), AppError> {
-    let query_text = req.get("query")
-        .and_then(|v| v.as_str())
-        .unwrap_or("");
+    let query_text = req.get("query").and_then(|v| v.as_str()).unwrap_or("");
     let limit = req.get("limit").and_then(|v| v.as_u64()).unwrap_or(20) as usize;
 
     if query_text.is_empty() {
@@ -302,20 +313,26 @@ pub async fn search_knowledge_objects(
     }
 
     let objects = if let Some(ref pg) = state.pg_store {
-        pg.search_knowledge_objects(query_text, limit).await
+        pg.search_knowledge_objects(query_text, limit)
+            .await
             .map_err(|e| AppError::BadRequest(format!("Search failed: {}", e)))?
     } else {
         return Err(AppError::NotFound("Knowledge store not available".into()));
     };
 
-    let items: Vec<serde_json::Value> = objects.iter().map(|obj| serde_json::json!({
-        "id": obj.id,
-        "title": obj.title,
-        "description": obj.description,
-        "object_type": format!("{:?}", obj.object_type),
-        "status": format!("{:?}", obj.status),
-        "tags": obj.tags,
-    })).collect();
+    let items: Vec<serde_json::Value> = objects
+        .iter()
+        .map(|obj| {
+            serde_json::json!({
+                "id": obj.id,
+                "title": obj.title,
+                "description": obj.description,
+                "object_type": format!("{:?}", obj.object_type),
+                "status": format!("{:?}", obj.status),
+                "tags": obj.tags,
+            })
+        })
+        .collect();
 
     Ok(ApiResponse::ok(serde_json::json!({
         "items": items,

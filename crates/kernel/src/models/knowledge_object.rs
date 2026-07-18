@@ -1,4 +1,6 @@
-use crate::{Confidence, ConfidenceSource, IntelligenceObject, KernelError, Provenance, SourceType};
+use crate::{
+    Confidence, ConfidenceSource, IntelligenceObject, KernelError, Provenance, SourceType,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -138,7 +140,10 @@ impl KnowledgeObject {
     }
 
     pub fn is_editable(&self) -> bool {
-        matches!(self.status, KnowledgeStatus::Draft | KnowledgeStatus::Review)
+        matches!(
+            self.status,
+            KnowledgeStatus::Draft | KnowledgeStatus::Review
+        )
     }
 
     pub fn is_active(&self) -> bool {

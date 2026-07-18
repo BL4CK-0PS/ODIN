@@ -1,10 +1,10 @@
 use crate::error::AppError;
-use axum::Json;
-use serde::Serialize;
+use crate::response::ApiResponse;
+use crate::state::AppState;
 use axum::extract::State;
 use axum::http::StatusCode;
-use crate::state::AppState;
-use crate::response::ApiResponse;
+use axum::Json;
+use serde::Serialize;
 use std::sync::Arc;
 
 #[derive(Debug, Serialize)]
@@ -60,7 +60,8 @@ pub async fn stats(
 
     let mut matches = 0;
     if let Ok(incidents) = state.incidents.read() {
-        let candidates = if let Ok(m) = state.memory.list_all() { m } else { Vec::new() };
+        let candidates: Vec<odin_core::odin_kernel::MemoryObject> =
+            state.memory.list_all().unwrap_or_default();
         for query in incidents.values() {
             if let Ok(results) = state.retrieval.search(query, &candidates, 10) {
                 for res in results {

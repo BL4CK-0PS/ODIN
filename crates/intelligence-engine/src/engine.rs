@@ -26,12 +26,16 @@ impl IntelligenceEngine {
         self.pipeline.process_evidence(evidence)
     }
 
-    pub async fn analyze_with_ollama(&mut self, evidence: &[Evidence]) -> Result<PipelineResult, KernelError> {
+    pub async fn analyze_with_ollama(
+        &mut self,
+        evidence: &[Evidence],
+    ) -> Result<PipelineResult, KernelError> {
         let mut result = self.pipeline.process_evidence(evidence)?;
         if let Some(ref ollama) = self.ollama {
             let analysis = ollama.analyze_evidence(evidence).await?;
             for r in &mut result.results {
-                r.reasoning_steps.push(format!("Ollama analysis: {}", analysis.raw_analysis));
+                r.reasoning_steps
+                    .push(format!("Ollama analysis: {}", analysis.raw_analysis));
             }
         }
         Ok(result)

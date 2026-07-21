@@ -6,7 +6,7 @@
 # =============================================================================
 
 .PHONY: help build run test lint fmt clean docker-up docker-down docker-logs \
-        backup restore smoke-test env
+        backup restore smoke-test env generate-certs
 
 # Default target
 help: ## Show this help message
@@ -82,7 +82,7 @@ check: fmt-check lint ## Run format check and linting
 # Docker
 # ---------------------------------------------------------------------------
 
-docker-up: env ## Start all services with Docker Compose
+docker-up: env generate-certs ## Start all services with Docker Compose
 	docker compose up -d --build
 
 docker-down: ## Stop all services
@@ -109,7 +109,7 @@ docker-health: ## Check health status of all services
 # ---------------------------------------------------------------------------
 
 monitoring-up: ## Start monitoring stack only
-	docker compose up -d prometheus grafana loki postgres-exporter redis-exporter
+	docker compose up -d prometheus grafana loki promtail postgres-exporter redis-exporter
 
 open-grafana: ## Open Grafana in browser
 	@echo "Grafana: http://localhost:3002 (admin/odin-grafana)"
@@ -143,10 +143,8 @@ clean: ## Clean build artifacts
 	cargo clean
 	cd apps/web && rm -rf .next node_modules/.cache 2>/dev/null || true
 
-login: ## Quick login test (admin/odin-dev-password)
-	@curl -s -X POST http://localhost:3001/api/v1/auth/login \
-		-H "Content-Type: application/json" \
-		-d '{"username":"admin","password":"odin-dev-password"}' | python3 -m json.tool 2>/dev/null || \
-	curl -s -X POST http://localhost:3001/api/v1/auth/login \
-		-H "Content-Type: application/json" \
-		-d '{"username":"admin","password":"odin-dev-password"}'
+generate-certs: ## Generate self-signed TLS certificates for nginx
+	bash deploy/nginx/generate-certs.sh
+
+neo4j-init: ## Run Neo4j constraint/index initialization
+	bash deploy/neo4j/init.sh

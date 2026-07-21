@@ -12,7 +12,7 @@
       "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
       "targets": [
         {
-          "expr": "up{job=\"odin-api\"}",
+          "expr": "odin_up",
           "legendFormat": "API",
           "refId": "A"
         }
@@ -27,64 +27,13 @@
       }
     },
     {
-      "title": "HTTP Requests/sec",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 6, "y": 0 },
-      "targets": [
-        {
-          "expr": "sum(rate(http_requests_total{job=\"odin-api\"}[5m]))",
-          "legendFormat": "Total",
-          "refId": "A"
-        }
-      ]
-    },
-    {
-      "title": "HTTP Response Latency (p95)",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 18, "y": 0 },
-      "targets": [
-        {
-          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"odin-api\"}[5m])) by (le))",
-          "legendFormat": "p95",
-          "refId": "A"
-        },
-        {
-          "expr": "histogram_quantile(0.50, sum(rate(http_request_duration_seconds_bucket{job=\"odin-api\"}[5m])) by (le))",
-          "legendFormat": "p50",
-          "refId": "B"
-        }
-      ]
-    },
-    {
-      "title": "HTTP Status Codes",
-      "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
-      "targets": [
-        {
-          "expr": "sum(rate(http_requests_total{job=\"odin-api\",status=~\"2..\"}[5m]))",
-          "legendFormat": "2xx",
-          "refId": "A"
-        },
-        {
-          "expr": "sum(rate(http_requests_total{job=\"odin-api\",status=~\"4..\"}[5m]))",
-          "legendFormat": "4xx",
-          "refId": "B"
-        },
-        {
-          "expr": "sum(rate(http_requests_total{job=\"odin-api\",status=~\"5..\"}[5m]))",
-          "legendFormat": "5xx",
-          "refId": "C"
-        }
-      ]
-    },
-    {
-      "title": "Active Incidents",
+      "title": "Active Investigations",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 8 },
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
       "targets": [
         {
-          "expr": "odin_incidents_total",
-          "legendFormat": "Total",
+          "expr": "odin_investigations_total",
+          "legendFormat": "Investigations",
           "refId": "A"
         }
       ]
@@ -92,19 +41,83 @@
     {
       "title": "Memory Objects",
       "type": "stat",
-      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 8 },
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
       "targets": [
         {
           "expr": "odin_memories_total",
-          "legendFormat": "Total",
+          "legendFormat": "Memories",
           "refId": "A"
         }
       ]
     },
     {
+      "title": "Unique Entities",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "targets": [
+        {
+          "expr": "odin_entities_total",
+          "legendFormat": "Entities",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Feedback Submissions",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 4 },
+      "targets": [
+        {
+          "expr": "odin_feedback_total",
+          "legendFormat": "Feedback",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Service Connectivity",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 18, "x": 6, "y": 4 },
+      "targets": [
+        { "expr": "odin_postgres_connected", "legendFormat": "PostgreSQL", "refId": "A" },
+        { "expr": "odin_qdrant_connected", "legendFormat": "Qdrant", "refId": "B" },
+        { "expr": "odin_redis_connected", "legendFormat": "Redis", "refId": "C" },
+        { "expr": "odin_neo4j_connected", "legendFormat": "Neo4j", "refId": "D" },
+        { "expr": "odin_ollama_connected", "legendFormat": "Ollama", "refId": "E" }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } }, "type": "value" }
+          ],
+          "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      }
+    },
+    {
+      "title": "Prometheus Target Health",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "up",
+          "legendFormat": "{{job}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "options": { "0": { "text": "DOWN", "color": "red" }, "1": { "text": "UP", "color": "green" } }, "type": "value" }
+          ],
+          "thresholds": { "steps": [{ "color": "red", "value": null }, { "color": "green", "value": 1 }] }
+        }
+      }
+    },
+    {
       "title": "PostgreSQL Connections",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 12 },
+      "gridPos": { "h": 8, "w": 12, "x": 6, "y": 8 },
       "targets": [
         {
           "expr": "pg_stat_activity_count",
@@ -116,11 +129,35 @@
     {
       "title": "Redis Memory Usage",
       "type": "timeseries",
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 12 },
+      "gridPos": { "h": 8, "w": 12, "x": 18, "y": 8 },
       "targets": [
         {
           "expr": "redis_memory_used_bytes",
           "legendFormat": "Used",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Container CPU Usage",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "rate(container_cpu_usage_seconds_total{name=~\"odin.*\"}[5m])",
+          "legendFormat": "{{name}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "title": "Container Memory Usage",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        {
+          "expr": "container_memory_usage_bytes{name=~\"odin.*\"}",
+          "legendFormat": "{{name}}",
           "refId": "A"
         }
       ]
@@ -132,5 +169,5 @@
   "time": { "from": "now-1h", "to": "now" },
   "title": "ODIN Infrastructure",
   "uid": "odin-infra",
-  "version": 1
+  "version": 2
 }

@@ -40,41 +40,25 @@ check "API Version"     "$API_URL/api/v1/system/version" 200
 check "Metrics Endpoint" "$API_URL/metrics"        200
 echo ""
 
-echo "[2/4] Authentication"
-LOGIN_RESP=$(curl -s -X POST "$API_URL/api/v1/auth/login" \
-    -H "Content-Type: application/json" \
-    -d '{"username":"admin","password":"odin-dev-password"}' 2>/dev/null || echo "{}")
-
-TOKEN=$(echo "$LOGIN_RESP" | grep -o '"token":"[^"]*"' | head -1 | cut -d'"' -f4)
-if [ -n "$TOKEN" ]; then
-    echo "  [PASS] Login successful, token obtained"
-    PASS=$((PASS + 1))
-else
-    echo "  [FAIL] Login failed"
-    FAIL=$((FAIL + 1))
-    TOKEN=""
-fi
+echo "[2/4] API Endpoints"
+check "System Stats"     "$API_URL/api/v1/system/stats"         200
+check "List Incidents"   "$API_URL/api/v1/incidents"            200
+check "List Memories"    "$API_URL/api/v1/memories"             200
+check "Knowledge List"   "$API_URL/api/v1/knowledge/list"       200
+check "Global Graph"     "$API_URL/api/v1/graph"                200
+check "Consolidation"    "$API_URL/api/v1/consolidation/stats"  200
 echo ""
 
-echo "[3/4] Protected Endpoints (with auth)"
-AUTH_HEADER=""
-if [ -n "$TOKEN" ]; then
-    AUTH_HEADER="Authorization: Bearer $TOKEN"
-    check "System Stats"     "$API_URL/api/v1/system/stats"         200
-    check "List Incidents"   "$API_URL/api/v1/incidents"            200
-    check "List Memories"    "$API_URL/api/v1/memories"             200
-    check "Knowledge List"   "$API_URL/api/v1/knowledge/list"       200
-    check "Global Graph"     "$API_URL/api/v1/graph"                200
-    check "Audit Logs"       "$API_URL/api/v1/auth/audit"           200
-    check "Consolidation"    "$API_URL/api/v1/consolidation/stats"  200
-else
-    echo "  [SKIP] No auth token, skipping protected endpoint tests"
-fi
-echo ""
-
-echo "[4/4] Infrastructure"
+echo "[3/4] Infrastructure"
 check "Qdrant"    "http://localhost:6333/healthz"   200
-check "Redis"     "http://localhost:6379"            200
+check "MinIO"     "http://localhost:9000/minio/health/live" 200
+check "Neo4j"     "http://localhost:7474"            200
+echo ""
+
+echo "[4/4] Monitoring"
+check "Prometheus"  "http://localhost:9090/-/healthy" 200
+check "Grafana"     "http://localhost:3002/api/health" 200
+check "Loki"        "http://localhost:3100/ready"      200
 echo ""
 
 echo "============================================"

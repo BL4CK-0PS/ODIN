@@ -2,20 +2,24 @@
 # =============================================================================
 # Neo4j Initialization Script
 # Creates constraints and indexes for the ODIN knowledge graph.
-# Usage: ./init.sh (run from host after Neo4j is up)
-# =============================================================================
-# This script should be run once after the first Neo4j startup to create
-# performance-optimizing constraints and indexes.
+# Usage: ./init.sh (auto-run via docker-compose neo4j-init service)
 # =============================================================================
 
 set -euo pipefail
 
-NEO4J_CONTAINER="${NEO4J_CONTAINER:-odin-neo4j-1}"
+NEO4J_CONTAINER="${NEO4J_CONTAINER:-neo4j}"
 NEO4J_USER="${NEO4J_USER:-neo4j}"
 NEO4J_PASSWORD="${NEO4J_PASSWORD:-odin}"
 
-echo "[+] Waiting for Neo4j container to be ready..."
+echo "[+] Waiting for Neo4j to be ready..."
+RETRIES=30
 until docker exec "$NEO4J_CONTAINER" cypher-shell -u "$NEO4J_USER" -p "$NEO4J_PASSWORD" "RETURN 1" 2>/dev/null; do
+    RETRIES=$((RETRIES - 1))
+    if [ "$RETRIES" -le 0 ]; then
+        echo "[-] Neo4j did not become ready in time"
+        exit 1
+    fi
+    echo "    waiting... ($RETRIES retries left)"
     sleep 2
 done
 echo "[+] Neo4j is ready. Creating constraints and indexes..."

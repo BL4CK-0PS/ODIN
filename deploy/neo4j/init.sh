@@ -7,13 +7,13 @@
 
 set -euo pipefail
 
-NEO4J_CONTAINER="${NEO4J_CONTAINER:-neo4j}"
+NEO4J_HOST="${NEO4J_CONTAINER:-neo4j}"
 NEO4J_USER="${NEO4J_USER:-neo4j}"
 NEO4J_PASSWORD="${NEO4J_PASSWORD:-odin}"
 
 echo "[+] Waiting for Neo4j to be ready..."
 RETRIES=30
-until docker exec "$NEO4J_CONTAINER" cypher-shell -u "$NEO4J_USER" -p "$NEO4J_PASSWORD" "RETURN 1" 2>/dev/null; do
+until cypher-shell -a "neo4j://${NEO4J_HOST}:7687" -u "$NEO4J_USER" -p "$NEO4J_PASSWORD" "RETURN 1" 2>/dev/null; do
     RETRIES=$((RETRIES - 1))
     if [ "$RETRIES" -le 0 ]; then
         echo "[-] Neo4j did not become ready in time"
@@ -40,6 +40,6 @@ CREATE INDEX entity_name IF NOT EXISTS FOR (e:Entity) ON (e.name);
 CREATE INDEX entity_type IF NOT EXISTS FOR (e:Entity) ON (e.entity_type);
 "
 
-echo "$CYPHER_QUERIES" | docker exec -i "$NEO4J_CONTAINER" cypher-shell -u "$NEO4J_USER" -p "$NEO4J_PASSWORD"
+echo "$CYPHER_QUERIES" | cypher-shell -a "neo4j://${NEO4J_HOST}:7687" -u "$NEO4J_USER" -p "$NEO4J_PASSWORD"
 
 echo "[+] Neo4j initialization complete."

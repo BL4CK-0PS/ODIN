@@ -184,7 +184,7 @@ impl PgStore {
                     incident_id: r.get("incident_id"),
                     source: r.get("source"),
                     content: r.get("content"),
-                    content_type: odin_kernel::EvidenceType::Other(ct),
+                    content_type: parse_evidence_type(&ct),
                     trust_score: r.get("trust_score"),
                     collected_at: r.get("collected_at"),
                     created_at: r.get("created_at"),
@@ -298,7 +298,7 @@ impl PgStore {
                 Entity {
                     id: r.get("id"),
                     name: r.get("name"),
-                    entity_type: odin_kernel::EntityType::Other(et),
+                    entity_type: parse_entity_type(&et),
                     metadata: r.get("metadata"),
                     created_at: r.get("created_at"),
                 }
@@ -344,109 +344,46 @@ impl MemoryStore for PgStore {
     fn save(&self, memory: MemoryObject) -> Result<(), KernelError> {
         let pool = self.pool.clone();
         let m = memory.clone();
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|_| KernelError::Internal("No tokio runtime".into()))?;
-        rt.block_on(async move {
-            sqlx::query(
-                r#"INSERT INTO memories (id, incident_id, summary, context, confidence, version, created_at, expires_at)
-                   VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                   ON CONFLICT (id) DO UPDATE SET
-                   summary = EXCLUDED.summary, context = EXCLUDED.context,
-                   confidence = EXCLUDED.confidence, version = EXCLUDED.version"#,
-            )
-            .bind(&m.id)
-            .bind(&m.incident_id)
-            .bind(&m.summary)
-            .bind(&m.context)
-            .bind(m.confidence)
-            .bind(m.version as i64)
-            .bind(m.created_at)
-            .bind(m.expires_at)
-            .execute(&pool)
-            .await
-            .map_err(|e| KernelError::Internal(format!("Save memory failed: {}", e)))?;
-            Ok(())
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::block_on(async move {
+                sqlx::query(
+                    r#"INSERT INTO memories (id, incident_id, summary, context, confidence, version, created_at, expires_at)
+                       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                       ON CONFLICT (id) DO UPDATE SET
+                       summary = EXCLUDED.summary, context = EXCLUDED.context,
+                       confidence = EXCLUDED.confidence, version = EXCLUDED.version"#,
+                )
+                .bind(&m.id)
+                .bind(&m.incident_id)
+                .bind(&m.summary)
+                .bind(&m.context)
+                .bind(m.confidence)
+                .bind(m.version as i64)
+                .bind(m.created_at)
+                .bind(m.expires_at)
+                .execute(&pool)
+                .await
+                .map_err(|e| KernelError::Internal(format!("Save memory failed: {}", e)))?;
+                Ok(())
+            })
         })
     }
 
     fn find_by_id(&self, id: &str) -> Result<Option<MemoryObject>, KernelError> {
         let pool = self.pool.clone();
         let id = id.to_string();
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|_| KernelError::Internal("No tokio runtime".into()))?;
-        rt.block_on(async move {
-            let row = sqlx::query(
-                r#"SELECT id, incident_id, summary, context, confidence, version, created_at, expires_at
-                   FROM memories WHERE id = $1"#,
-            )
-            .bind(&id)
-            .fetch_optional(&pool)
-            .await
-            .map_err(|e| KernelError::Internal(format!("Find memory failed: {}", e)))?;
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::block_on(async move {
+                let row = sqlx::query(
+                    r#"SELECT id, incident_id, summary, context, confidence, version, created_at, expires_at
+                       FROM memories WHERE id = $1"#,
+                )
+                .bind(&id)
+                .fetch_optional(&pool)
+                .await
+                .map_err(|e| KernelError::Internal(format!("Find memory failed: {}", e)))?;
 
-            Ok(row.map(|r| {
-                let version: i64 = r.get("version");
-                MemoryObject {
-                    id: r.get("id"),
-                    incident_id: r.get("incident_id"),
-                    summary: r.get("summary"),
-                    context: r.get("context"),
-                    confidence: r.get("confidence"),
-                    version: version as u64,
-                    created_at: r.get("created_at"),
-                    expires_at: r.get("expires_at"),
-                }
-            }))
-        })
-    }
-
-    fn find_by_incident_id(&self, incident_id: &str) -> Result<Option<MemoryObject>, KernelError> {
-        let pool = self.pool.clone();
-        let iid = incident_id.to_string();
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|_| KernelError::Internal("No tokio runtime".into()))?;
-        rt.block_on(async move {
-            let row = sqlx::query(
-                r#"SELECT id, incident_id, summary, context, confidence, version, created_at, expires_at
-                   FROM memories WHERE incident_id = $1"#,
-            )
-            .bind(&iid)
-            .fetch_optional(&pool)
-            .await
-            .map_err(|e| KernelError::Internal(format!("Find memory by incident failed: {}", e)))?;
-
-            Ok(row.map(|r| {
-                let version: i64 = r.get("version");
-                MemoryObject {
-                    id: r.get("id"),
-                    incident_id: r.get("incident_id"),
-                    summary: r.get("summary"),
-                    context: r.get("context"),
-                    confidence: r.get("confidence"),
-                    version: version as u64,
-                    created_at: r.get("created_at"),
-                    expires_at: r.get("expires_at"),
-                }
-            }))
-        })
-    }
-
-    fn list_all(&self) -> Result<Vec<MemoryObject>, KernelError> {
-        let pool = self.pool.clone();
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|_| KernelError::Internal("No tokio runtime".into()))?;
-        rt.block_on(async move {
-            let rows = sqlx::query(
-                r#"SELECT id, incident_id, summary, context, confidence, version, created_at, expires_at
-                   FROM memories ORDER BY created_at DESC"#,
-            )
-            .fetch_all(&pool)
-            .await
-            .map_err(|e| KernelError::Internal(format!("List memories failed: {}", e)))?;
-
-            Ok(rows
-                .into_iter()
-                .map(|r| {
+                Ok(row.map(|r| {
                     let version: i64 = r.get("version");
                     MemoryObject {
                         id: r.get("id"),
@@ -458,123 +395,186 @@ impl MemoryStore for PgStore {
                         created_at: r.get("created_at"),
                         expires_at: r.get("expires_at"),
                     }
-                })
-                .collect())
+                }))
+            })
+        })
+    }
+
+    fn find_by_incident_id(&self, incident_id: &str) -> Result<Option<MemoryObject>, KernelError> {
+        let pool = self.pool.clone();
+        let iid = incident_id.to_string();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::block_on(async move {
+                let row = sqlx::query(
+                    r#"SELECT id, incident_id, summary, context, confidence, version, created_at, expires_at
+                       FROM memories WHERE incident_id = $1"#,
+                )
+                .bind(&iid)
+                .fetch_optional(&pool)
+                .await
+                .map_err(|e| KernelError::Internal(format!("Find memory by incident failed: {}", e)))?;
+
+                Ok(row.map(|r| {
+                    let version: i64 = r.get("version");
+                    MemoryObject {
+                        id: r.get("id"),
+                        incident_id: r.get("incident_id"),
+                        summary: r.get("summary"),
+                        context: r.get("context"),
+                        confidence: r.get("confidence"),
+                        version: version as u64,
+                        created_at: r.get("created_at"),
+                        expires_at: r.get("expires_at"),
+                    }
+                }))
+            })
+        })
+    }
+
+    fn list_all(&self) -> Result<Vec<MemoryObject>, KernelError> {
+        let pool = self.pool.clone();
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::block_on(async move {
+                let rows = sqlx::query(
+                    r#"SELECT id, incident_id, summary, context, confidence, version, created_at, expires_at
+                       FROM memories ORDER BY created_at DESC"#,
+                )
+                .fetch_all(&pool)
+                .await
+                .map_err(|e| KernelError::Internal(format!("List memories failed: {}", e)))?;
+
+                Ok(rows
+                    .into_iter()
+                    .map(|r| {
+                        let version: i64 = r.get("version");
+                        MemoryObject {
+                            id: r.get("id"),
+                            incident_id: r.get("incident_id"),
+                            summary: r.get("summary"),
+                            context: r.get("context"),
+                            confidence: r.get("confidence"),
+                            version: version as u64,
+                            created_at: r.get("created_at"),
+                            expires_at: r.get("expires_at"),
+                        }
+                    })
+                    .collect())
+            })
         })
     }
 
     fn save_version(&self, version: MemoryVersion) -> Result<(), KernelError> {
         let pool = self.pool.clone();
         let v = version.clone();
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|_| KernelError::Internal("No tokio runtime".into()))?;
-        rt.block_on(async move {
-            let snapshot = serde_json::to_value(&v.memory)
-                .map_err(|e| KernelError::Internal(format!("Serialize failed: {}", e)))?;
-            sqlx::query(
-                r#"INSERT INTO memory_versions (memory_id, version, snapshot, changelog, created_at)
-                   VALUES ($1, $2, $3, $4, $5)"#,
-            )
-            .bind(&v.memory.id)
-            .bind(v.version as i64)
-            .bind(&snapshot)
-            .bind(&v.changelog)
-            .bind(v.created_at)
-            .execute(&pool)
-            .await
-            .map_err(|e| KernelError::Internal(format!("Save version failed: {}", e)))?;
-            Ok(())
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::block_on(async move {
+                let snapshot = serde_json::to_value(&v.memory)
+                    .map_err(|e| KernelError::Internal(format!("Serialize failed: {}", e)))?;
+                sqlx::query(
+                    r#"INSERT INTO memory_versions (memory_id, version, snapshot, changelog, created_at)
+                       VALUES ($1, $2, $3, $4, $5)"#,
+                )
+                .bind(&v.memory.id)
+                .bind(v.version as i64)
+                .bind(&snapshot)
+                .bind(&v.changelog)
+                .bind(v.created_at)
+                .execute(&pool)
+                .await
+                .map_err(|e| KernelError::Internal(format!("Save version failed: {}", e)))?;
+                Ok(())
+            })
         })
     }
 
     fn get_versions(&self, memory_id: &str) -> Result<Vec<MemoryVersion>, KernelError> {
         let pool = self.pool.clone();
         let mid = memory_id.to_string();
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|_| KernelError::Internal("No tokio runtime".into()))?;
-        rt.block_on(async move {
-            let rows = sqlx::query(
-                r#"SELECT memory_id, version, snapshot, changelog, created_at
-                   FROM memory_versions WHERE memory_id = $1 ORDER BY version"#,
-            )
-            .bind(&mid)
-            .fetch_all(&pool)
-            .await
-            .map_err(|e| KernelError::Internal(format!("Get versions failed: {}", e)))?;
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::block_on(async move {
+                let rows = sqlx::query(
+                    r#"SELECT memory_id, version, snapshot, changelog, created_at
+                       FROM memory_versions WHERE memory_id = $1 ORDER BY version"#,
+                )
+                .bind(&mid)
+                .fetch_all(&pool)
+                .await
+                .map_err(|e| KernelError::Internal(format!("Get versions failed: {}", e)))?;
 
-            let mut versions = Vec::new();
-            for r in rows {
-                let version: i64 = r.get("version");
-                let snapshot: serde_json::Value = r.get("snapshot");
-                let memory: MemoryObject = serde_json::from_value(snapshot)
-                    .map_err(|e| KernelError::Internal(format!("Deserialize failed: {}", e)))?;
-                versions.push(MemoryVersion {
-                    version: version as u64,
-                    memory,
-                    created_at: r.get("created_at"),
-                    changelog: r.get("changelog"),
-                });
-            }
-            Ok(versions)
+                let mut versions = Vec::new();
+                for r in rows {
+                    let version: i64 = r.get("version");
+                    let snapshot: serde_json::Value = r.get("snapshot");
+                    let memory: MemoryObject = serde_json::from_value(snapshot)
+                        .map_err(|e| KernelError::Internal(format!("Deserialize failed: {}", e)))?;
+                    versions.push(MemoryVersion {
+                        version: version as u64,
+                        memory,
+                        created_at: r.get("created_at"),
+                        changelog: r.get("changelog"),
+                    });
+                }
+                Ok(versions)
+            })
         })
     }
 
     fn purge_expired(&self) -> Result<Vec<String>, KernelError> {
         let pool = self.pool.clone();
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|_| KernelError::Internal("No tokio runtime".into()))?;
-        rt.block_on(async move {
-            let rows = sqlx::query(
-                r#"DELETE FROM memories WHERE expires_at IS NOT NULL AND expires_at <= NOW()
-                   RETURNING id"#,
-            )
-            .fetch_all(&pool)
-            .await
-            .map_err(|e| KernelError::Internal(format!("Purge expired failed: {}", e)))?;
-            let ids: Vec<String> = rows.iter().map(|r| r.get("id")).collect();
-            if !ids.is_empty() {
-                let deleted = ids.len();
-                tracing::info!("Purged {} expired memories", deleted);
-            }
-            Ok(ids)
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::block_on(async move {
+                let rows = sqlx::query(
+                    r#"DELETE FROM memories WHERE expires_at IS NOT NULL AND expires_at <= NOW()
+                       RETURNING id"#,
+                )
+                .fetch_all(&pool)
+                .await
+                .map_err(|e| KernelError::Internal(format!("Purge expired failed: {}", e)))?;
+                let ids: Vec<String> = rows.iter().map(|r| r.get("id")).collect();
+                if !ids.is_empty() {
+                    let deleted = ids.len();
+                    tracing::info!("Purged {} expired memories", deleted);
+                }
+                Ok(ids)
+            })
         })
     }
 
     fn prune_versions(&self, memory_id: &str, max_versions: usize) -> Result<usize, KernelError> {
         let pool = self.pool.clone();
         let mid = memory_id.to_string();
-        let rt = tokio::runtime::Handle::try_current()
-            .map_err(|_| KernelError::Internal("No tokio runtime".into()))?;
-        rt.block_on(async move {
-            let count_row = sqlx::query_scalar::<_, i64>(
-                r#"SELECT COUNT(*) FROM memory_versions WHERE memory_id = $1"#,
-            )
-            .bind(&mid)
-            .fetch_one(&pool)
-            .await
-            .map_err(|e| KernelError::Internal(format!("Count versions failed: {}", e)))?;
-            let count = count_row as usize;
-            if count <= max_versions {
-                return Ok(0);
-            }
-            let to_remove = count - max_versions;
-            sqlx::query(
-                r#"DELETE FROM memory_versions
-                   WHERE memory_id = $1
-                   AND id IN (
-                       SELECT id FROM memory_versions
+        tokio::task::block_in_place(|| {
+            tokio::runtime::Handle::block_on(async move {
+                let count_row = sqlx::query_scalar::<_, i64>(
+                    r#"SELECT COUNT(*) FROM memory_versions WHERE memory_id = $1"#,
+                )
+                .bind(&mid)
+                .fetch_one(&pool)
+                .await
+                .map_err(|e| KernelError::Internal(format!("Count versions failed: {}", e)))?;
+                let count = count_row as usize;
+                if count <= max_versions {
+                    return Ok(0);
+                }
+                let to_remove = count - max_versions;
+                sqlx::query(
+                    r#"DELETE FROM memory_versions
                        WHERE memory_id = $1
-                       ORDER BY version ASC
-                       LIMIT $2
-                   )"#,
-            )
-            .bind(&mid)
-            .bind(to_remove as i64)
-            .execute(&pool)
-            .await
-            .map_err(|e| KernelError::Internal(format!("Prune versions failed: {}", e)))?;
-            tracing::info!("Pruned {} old versions for memory {}", to_remove, memory_id);
-            Ok(to_remove)
+                       AND id IN (
+                           SELECT id FROM memory_versions
+                           WHERE memory_id = $1
+                           ORDER BY version ASC
+                           LIMIT $2
+                       )"#,
+                )
+                .bind(&mid)
+                .bind(to_remove as i64)
+                .execute(&pool)
+                .await
+                .map_err(|e| KernelError::Internal(format!("Prune versions failed: {}", e)))?;
+                tracing::info!("Pruned {} old versions for memory {}", to_remove, memory_id);
+                Ok(to_remove)
+            })
         })
     }
 }
@@ -654,18 +654,32 @@ impl PgStore {
         offset: usize,
     ) -> Result<Vec<KnowledgeObject>, KernelError> {
         let mut query = String::from("SELECT * FROM knowledge_objects WHERE 1=1");
-        if let Some(s) = status_filter {
-            query.push_str(&format!(" AND status = '{}'", s));
+        let mut param_idx = 1;
+
+        if status_filter.is_some() {
+            query.push_str(&format!(" AND status = ${}", param_idx));
+            param_idx += 1;
         }
-        if let Some(t) = type_filter {
-            query.push_str(&format!(" AND object_type = '{}'", t));
+        if type_filter.is_some() {
+            query.push_str(&format!(" AND object_type = ${}", param_idx));
+            param_idx += 1;
         }
         query.push_str(&format!(
-            " ORDER BY updated_at DESC LIMIT {} OFFSET {}",
-            limit, offset
+            " ORDER BY updated_at DESC LIMIT ${} OFFSET ${}",
+            param_idx,
+            param_idx + 1
         ));
 
-        let rows = sqlx::query(&query)
+        let mut q = sqlx::query(&query);
+        if let Some(s) = status_filter {
+            q = q.bind(s);
+        }
+        if let Some(t) = type_filter {
+            q = q.bind(t);
+        }
+        q = q.bind(limit as i64).bind(offset as i64);
+
+        let rows = q
             .fetch_all(&self.pool)
             .await
             .map_err(|e| KernelError::Internal(format!("List knowledge objects failed: {}", e)))?;
@@ -711,7 +725,7 @@ impl PgStore {
     ) -> Result<Vec<KnowledgeObject>, KernelError> {
         let rows = sqlx::query(
             r#"SELECT * FROM knowledge_objects
-               WHERE title ILIKE $1 OR description ILIKE $1 OR content ILIKE $1
+               WHERE (title ILIKE $1 OR description ILIKE $1 OR content ILIKE $1)
                AND status != 'Purged'
                ORDER BY updated_at DESC LIMIT $2"#,
         )
@@ -790,5 +804,44 @@ fn parse_knowledge_type(s: &str) -> KnowledgeType {
         "ResponseProcedure" => KnowledgeType::ResponseProcedure,
         "Policy" => KnowledgeType::Policy,
         other => KnowledgeType::Custom(other.to_string()),
+    }
+}
+
+fn parse_evidence_type(s: &str) -> odin_kernel::EvidenceType {
+    match s {
+        "Log" => odin_kernel::EvidenceType::Log,
+        "NetworkCapture" => odin_kernel::EvidenceType::NetworkCapture,
+        "FileSystemArtifact" => odin_kernel::EvidenceType::FileSystemArtifact,
+        "MemoryDump" => odin_kernel::EvidenceType::MemoryDump,
+        "ThreatIntelReport" => odin_kernel::EvidenceType::ThreatIntelReport,
+        "UserReport" => odin_kernel::EvidenceType::UserReport,
+        other => {
+            if let Some(inner) = other.strip_prefix("Other(\"").and_then(|r| r.strip_suffix("\")")) {
+                odin_kernel::EvidenceType::Other(inner.to_string())
+            } else {
+                odin_kernel::EvidenceType::Other(other.to_string())
+            }
+        }
+    }
+}
+
+fn parse_entity_type(s: &str) -> odin_kernel::EntityType {
+    match s {
+        "IpAddress" => odin_kernel::EntityType::IpAddress,
+        "Domain" => odin_kernel::EntityType::Domain,
+        "Hash" => odin_kernel::EntityType::Hash,
+        "Hostname" => odin_kernel::EntityType::Hostname,
+        "User" => odin_kernel::EntityType::User,
+        "Process" => odin_kernel::EntityType::Process,
+        "File" => odin_kernel::EntityType::File,
+        "NetworkConnection" => odin_kernel::EntityType::NetworkConnection,
+        "Artifact" => odin_kernel::EntityType::Artifact,
+        other => {
+            if let Some(inner) = other.strip_prefix("Other(\"").and_then(|r| r.strip_suffix("\")")) {
+                odin_kernel::EntityType::Other(inner.to_string())
+            } else {
+                odin_kernel::EntityType::Other(other.to_string())
+            }
+        }
     }
 }

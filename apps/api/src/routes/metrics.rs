@@ -68,10 +68,9 @@ pub async fn metrics(axum::extract::State(state): axum::extract::State<Arc<AppSt
         .redis
         .as_ref()
         .map(|r| {
-            tokio::runtime::Handle::try_current()
-                .ok()
-                .map(|h| h.block_on(async { r.health_check().await }))
-                .unwrap_or(false)
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::block_on(async { r.health_check().await })
+            })
         })
         .unwrap_or(false);
     lines.push("# HELP odin_redis_connected Whether Redis is connected.".to_string());
@@ -85,10 +84,9 @@ pub async fn metrics(axum::extract::State(state): axum::extract::State<Arc<AppSt
         .neo4j
         .as_ref()
         .map(|n| {
-            tokio::runtime::Handle::try_current()
-                .ok()
-                .map(|h| h.block_on(async { n.health_check().await }))
-                .unwrap_or(false)
+            tokio::task::block_in_place(|| {
+                tokio::runtime::Handle::block_on(async { n.health_check().await })
+            })
         })
         .unwrap_or(false);
     lines.push("# HELP odin_neo4j_connected Whether Neo4j is connected.".to_string());

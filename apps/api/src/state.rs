@@ -112,9 +112,11 @@ impl AppState {
                 let config = ConsolidationConfig::with_summarizer(move |prompt: &str| {
                     let client = ollama_for_summary.clone();
                     let p = prompt.to_string();
-                    tokio::runtime::Handle::try_current()
-                        .map_err(|_| KernelError::Internal("No tokio runtime".into()))?
-                        .block_on(async move { client.generate(&p, 0.3).await })
+                    tokio::task::block_in_place(|| {
+                        tokio::runtime::Handle::block_on(async move {
+                            client.generate(&p, 0.3).await
+                        })
+                    })
                 });
                 let engine = MemoryEngine::with_store(Box::new(store)).with_consolidation(config);
 
@@ -137,9 +139,11 @@ impl AppState {
                     Box::new(move |text: &str| {
                         let client = embed_ollama.clone();
                         let t = text.to_string();
-                        tokio::runtime::Handle::try_current()
-                            .unwrap()
-                            .block_on(async move { client.generate_embedding(&t).await })
+                        tokio::task::block_in_place(|| {
+                            tokio::runtime::Handle::block_on(async move {
+                                client.generate_embedding(&t).await
+                            })
+                        })
                     }),
                 );
                 self.qdrant = Some(qdrant);

@@ -49,16 +49,14 @@ check "Global Graph"     "$API_URL/api/v1/graph"                200
 check "Consolidation"    "$API_URL/api/v1/consolidation/stats"  200
 echo ""
 
-echo "[3/4] Infrastructure"
-check "Qdrant"    "http://localhost:6333/healthz"   200
-check "MinIO"     "http://localhost:9000/minio/health/live" 200
-check "Neo4j"     "http://localhost:7474"            200
-echo ""
-
-echo "[4/4] Monitoring"
+echo "[3/4] Monitoring"
 check "Prometheus"  "http://localhost:9090/-/healthy" 200
 check "Grafana"     "http://localhost:3002/api/health" 200
 check "Loki"        "http://localhost:3100/ready"      200
+echo ""
+
+echo "[4/4] Infrastructure (via API health)"
+check "API System Health" "$API_URL/api/v1/system/health" 200
 echo ""
 
 echo "============================================"
